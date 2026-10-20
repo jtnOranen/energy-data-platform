@@ -12,3 +12,8 @@ output "key_vault_name" {
   description = "Name of the dev Key Vault."
   value       = module.key_vault.key_vault_name
 }
+
+output "function_app_name" {
+  description = "Name of the ingestion function app."
+  value       = module.function_app.function_app_name
+}
