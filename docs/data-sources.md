@@ -1,35 +1,43 @@
 # Data sources
 
-> Items marked **VERIFY** were not confirmed against the live documentation when this file was written.
-> Check them before implementing, and update this file.
+> Items marked **VERIFY** have not yet been confirmed against the live API. The rest were checked on
+> 2026-10-20 (phase 1, step 0) against the official documentation or by calling the API directly.
 
 ## Fingrid open data
 
 | Item | Value |
 | --- | --- |
 | Docs | https://data.fingrid.fi/en/instructions, technical docs at https://developer-data.fingrid.fi |
-| Base URL | `https://data.fingrid.fi/api` |
+| Base URL | `https://data.fingrid.fi/api` (returns 401 without a key) |
 | Auth | Free API key (register, subscribe to "Open Data starter"), sent in header `x-api-key` |
 | Limits | 1 request / 2 s and 10,000 requests / 24 h per key |
-| Datasets | Wind power production, real-time, dataset **181** (3-minute resolution, MW). Consumption and total production: **VERIFY dataset IDs** on data.fingrid.fi |
-| Endpoint shape | **VERIFY** in the developer portal (dataset data endpoint with start/end time and paging) |
+| Datasets | **75** wind power generation (MW), **124** electricity consumption in Finland (MWh/h), **74** electricity production in Finland (MWh/h). All three are 15-minute data from 2023-06-13 and hourly before that. See ADR 0009 for why these and not the 3-minute real-time datasets (181, 193, 192) |
+| Endpoint shape | **VERIFY** with a key: data endpoint per dataset, paging parameters and maximum page size, and which timestamp fields each record has |
 
-Quirks: real-time values can be revised; 3-minute grain must be aggregated to 15 minutes in silver (mean MW).
+Quirks:
+- Fingrid's own description of dataset 124 says the value with timestamp 14:15 is the average of
+  14:00–14:15, so timestamps may mark the **end** of the interval. **VERIFY** from the API response
+  whether records carry both a start and an end time. Silver must align every value to the interval
+  start (`interval_start_utc`).
+- MWh/h over 15 minutes is the same quantity as average MW, so the three datasets can be compared directly.
 
 ## ENTSO-E Transparency Platform
 
 | Item | Value |
 | --- | --- |
-| Docs | https://transparency.entsoe.eu (API guide), token via "My Account → Web API Security Token" after requesting access |
-| Base URL | `https://web-api.tp.entsoe.eu/api` **VERIFY** |
-| Auth | `securityToken` query parameter (free, request access by registering) |
-| Dataset | Day-ahead prices: `documentType=A44`, `in_Domain` = `out_Domain` = `10YFI-1--------U` (bidding zone FI) **VERIFY** |
-| Format | XML (`Publication_MarketDocument`), timestamps in UTC, prices EUR/MWh |
+| Docs | Transparency Platform knowledge base (transparencyplatform.zendesk.com, "Restful API integration guide"); the old static guide on transparency.entsoe.eu now points there |
+| Base URL | `https://web-api.tp.entsoe.eu/api` (https only; returns 401 without a token) |
+| Auth | `securityToken` query parameter. Register, then request REST API access by email (subject "Restful API access") |
+| Limits | 400 requests / minute **per token** (not per IP). Exceeding it gives HTTP 429 and a temporary ban of about 10 minutes. Day-ahead prices (article 12.1.D): at most a **one-year** date range per request |
+| Dataset | Day-ahead prices: `documentType=A44`, `in_Domain` = `out_Domain` = `10YFI-1--------U` (bidding zone FI) **VERIFY** with a token |
+| Format | XML (`Publication_MarketDocument`), timestamps in UTC, prices EUR/MWh. A query for energy prices always returns whole days |
 
 Quirks:
 - Resolution changed from `PT60M` to `PT15M` for delivery day **2025-10-01** (SDAC 15-minute MTU go-live).
   Read the `resolution` element per period; never assume it.
 - Periods can omit positions when the price repeats (curve type A03) **VERIFY**; forward-fill within the period.
+- A query with no matching data is reported as an `Acknowledgement_MarketDocument` instead of a price
+  document **VERIFY** (HTTP status and reason codes).
 - The market delivery day follows CET/CEST, i.e. 01:00–01:00 Finnish local time.
 
 ## Finnish Meteorological Institute (FMI) open data
@@ -37,16 +45,21 @@ Quirks:
 | Item | Value |
 | --- | --- |
 | Docs | https://en.ilmatieteenlaitos.fi/open-data-manual |
-| Base URL | `http://opendata.fmi.fi/wfs` (WFS 2.0, use https if supported **VERIFY**) |
-| Auth | None in documented examples; users must accept the open data licence |
-| Query | Stored query for weather observations, e.g. `fmi::observations::weather::timevaluepair` with `fmisid`, `parameters=t2m,ws_10min`, `starttime`, `endtime` **VERIFY** |
-| Stations | Start with a handful of stations near wind power clusters and population centres (e.g. Helsinki-Vantaa, Oulu, Vaasa, Pori). Pick by `fmisid` |
+| Base URL | `https://opendata.fmi.fi/wfs` (WFS 2.0, https works) |
+| Auth | None; users must accept the open data licence |
+| Query | Stored query `fmi::observations::weather::timevaluepair` with `fmisid`, `parameters=t2m,ws_10min`, `starttime`, `endtime` and **`timestep=10`** |
+| Limits | At most **168 hours** per query. A longer range returns HTTP 400 with an `ExceptionReport` ("Too long time interval requested") |
+| Stations | Start with a handful near wind power clusters and population centres. Picked by `fmisid`: Helsinki-Vantaa airport = **100968**; choose the others (e.g. Oulu, Vaasa, Pori) when implementing |
 
-Quirks: 10-minute observations; missing values appear as `NaN`; station metadata can change (handled as SCD2 in dbt).
+Quirks:
+- **Without `timestep=10` the query returns 1-minute data**: about ten times the points and the response
+  size (one station, two parameters, 7 days: 20,162 points and 6.5 MB versus 2,018 points and 0.66 MB).
+- Missing values appear as `NaN`. Station metadata can change (handled as SCD2 in dbt).
 
 ## Ingestion rules (all sources)
 
 - Fetch a window of **now − 48 h → now** every run, so late and revised data is picked up. Downstream dedupes.
 - Write the raw response unchanged. Never transform in the Function.
 - Backfill script loads history from **2024-01-01** so both 60- and 15-minute price grains are present.
+  Chunk sizes follow the limits above: ENTSO-E at most one year, FMI at most 168 hours per request.
 - Log source, dataset, window, row count and HTTP status for every call.
