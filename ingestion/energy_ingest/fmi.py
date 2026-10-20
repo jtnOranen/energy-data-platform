@@ -13,8 +13,8 @@ BASE_URL = "https://opendata.fmi.fi/wfs"
 STORED_QUERY = "fmi::observations::weather::timevaluepair"
 PARAMETERS = "t2m,ws_10min"
 MAX_SPAN = timedelta(hours=168)  # longer ranges are rejected with HTTP 400
-# FMI's request limits are not verified yet (docs/data-sources.md), so space requests out:
-# the backfill makes a few hundred of them.
+# FMI allows 600 requests / 5 min and 20,000 / day. One per second (at most 300 / 5 min) keeps
+# the backfill's ~600 requests well inside both.
 MIN_INTERVAL_S = 1.0
 
 # fmisid -> short name, verified against the API (station name in the response).

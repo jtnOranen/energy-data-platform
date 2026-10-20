@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Protocol
 
-from energy_ingest import fingrid, fmi
+from energy_ingest import entsoe, fingrid, fmi
 from energy_ingest.landing import blob_path
 from energy_ingest.transport import SourceError
 from energy_ingest.window import iso_z
@@ -99,6 +99,30 @@ def ingest_fmi(
             )
             errors.append(str(exc))
     _raise_if_any("fmi", errors)
+    return written
+
+
+def ingest_entsoe(
+    client: entsoe.EntsoeClient,
+    landing: Writer,
+    start: datetime,
+    end: datetime,
+    ingested_at: datetime,
+) -> int:
+    """Fetch Finnish day-ahead prices. One dataset, so any error fails the run directly."""
+    written = 0
+    for page in client.fetch_prices(start, end):
+        path = blob_path("entsoe", "day_ahead_price", ingested_at, start, end, page.number, "xml")
+        landing.write(path, page.content)
+        written += 1
+        log.info(
+            "source=entsoe dataset=day_ahead_price window=%s/%s part=%s points=%s blob=%s",
+            iso_z(start),
+            iso_z(end),
+            page.number,
+            page.record_count,
+            path,
+        )
     return written
 
 
