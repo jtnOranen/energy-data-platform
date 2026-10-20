@@ -24,9 +24,10 @@ Idempotent script the owner runs **once** locally. It:
 - creates resource group `rg-energy-tfstate` and a storage account (`stenergytfstate<suffix>`, Standard_LRS,
   TLS 1.2, no public blob access, blob versioning on) with container `tfstate`;
 - creates an Entra ID app registration + service principal `gh-energy-data-platform`;
-- adds two federated credentials:
-  - `repo:<owner>/energy-data-platform:ref:refs/heads/main`
-  - `repo:<owner>/energy-data-platform:pull_request`
+- adds three federated credentials (subjects use GitHub's immutable IDs, `<owner>@<owner_id>/<repo>@<repo_id>`):
+  - `repo:<owner>@<id>/energy-data-platform@<id>:ref:refs/heads/main` (plan job on push to `main`)
+  - `repo:<owner>@<id>/energy-data-platform@<id>:pull_request` (plan job on PRs)
+  - `repo:<owner>@<id>/energy-data-platform@<id>:environment:dev` (apply job, which runs in the `dev` environment)
   (issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`);
 - assigns roles to the service principal:
   - `Contributor` on the subscription,

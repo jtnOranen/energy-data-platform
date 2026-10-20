@@ -27,13 +27,10 @@ env:
   TF_VAR_owner: ${{ vars.OWNER }}
   TF_VAR_owner_object_id: ${{ vars.OWNER_OBJECT_ID }}
   TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
-  # The GitHub OIDC token's `sub` claim for a pull_request-triggered run is
-  # repo:<owner>/<repo>:pull_request REGARDLESS of whether the PR comes from a fork --
-  # it does not distinguish "our own branch" from "a stranger's fork". Since this repo
-  # is public and anyone can open a fork PR, every step below that would request that
-  # OIDC token (init/validate/plan) is gated on the PR actually coming from this
-  # repository. Nobody but the owner has write access here, so in practice this means
-  # "the owner's own PR branches, or a push to main".
+  # Defense in depth for a public repo: the pull_request OIDC subject doesn't say whether
+  # the PR came from a fork. GitHub already gives fork PRs a read-only token by default,
+  # but the steps that request the OIDC token (init/validate/plan) are also gated on the
+  # PR coming from this repository -- in practice, the owner's own branches. See ADR 0004.
   IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:

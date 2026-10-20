@@ -152,6 +152,9 @@ JSON
 
 add_federated_credential "gh-energy-data-platform-main" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:ref:refs/heads/main"
 add_federated_credential "gh-energy-data-platform-pr" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:pull_request"
+# A job that declares `environment: dev` (the apply job) gets this subject instead of the
+# ref:refs/heads/main one, so it needs its own credential.
+add_federated_credential "gh-energy-data-platform-env-dev" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:environment:dev"
 
 echo "==> Role assignments"
 
