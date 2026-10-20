@@ -109,7 +109,9 @@ Behaviour:
 - **Log every call:** source, dataset, window, row/record count, HTTP status.
 - Same client code in the function and in `backfill.py`. The backfill runs locally as the owner
   (`az login`, reads the keys from Key Vault), chunked to each API's maximum range, and respects the same
-  rate limits.
+  rate limits. Its Key Vault client (`azure-keyvault-secrets`) is in the workspace root's `ops`
+  dependency group, so it isn't deployed with the function. Backfilled files land in the partition of
+  the day the backfill ran, since the partition is the ingestion date; the window is in the file name.
 
 Tests (no network, per `docs/conventions.md`):
 

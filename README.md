@@ -33,6 +33,16 @@ Open a pull request: CI runs `fmt`, `validate` and `plan` and posts the plan as 
 `main` applies that plan in the `dev` environment, then runs `plan` once more and fails if it shows any
 change, which catches config that never converges.
 
+### Backfill (once, after the first deploy)
+
+```bash
+SA=$(az storage account list -g rg-energy-dev --query "[?starts_with(name, 'stenergydev')].name | [0]" -o tsv)
+KV=$(az keyvault list -g rg-energy-dev --query "[0].name" -o tsv)
+uv run python ingestion/backfill.py --storage-account "$SA" --key-vault "$KV"
+```
+
+Loads 2024-01-01 → now for all three sources into `landing` with the same code as the hourly functions.
+
 ## Design decisions
 
 See [docs/adr](docs/adr). Highlights: [ingestion](docs/adr/0002-azure-function-for-ingestion.md),
