@@ -27,6 +27,14 @@ env:
   TF_VAR_owner: ${{ vars.OWNER }}
   TF_VAR_owner_object_id: ${{ vars.OWNER_OBJECT_ID }}
   TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+  # The GitHub OIDC token's `sub` claim for a pull_request-triggered run is
+  # repo:<owner>/<repo>:pull_request REGARDLESS of whether the PR comes from a fork --
+  # it does not distinguish "our own branch" from "a stranger's fork". Since this repo
+  # is public and anyone can open a fork PR, every step below that would request that
+  # OIDC token (init/validate/plan) is gated on the PR actually coming from this
+  # repository. Nobody but the owner has write access here, so in practice this means
+  # "the owner's own PR branches, or a push to main".
+  IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
   plan:
@@ -49,6 +57,7 @@ jobs:
         run: terraform fmt -recursive -check
 
       - name: Terraform init
+        if: env.IS_TRUSTED_SOURCE == 'true'
         run: |
           terraform init \
             -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}" \
@@ -57,12 +66,14 @@ jobs:
             -backend-config="key=dev.tfstate"
 
       - name: Terraform validate
+        if: env.IS_TRUSTED_SOURCE == 'true'
         run: terraform validate
 
       # continue-on-error so a failed plan still gets reported in the PR comment below;
       # the "Fail job if plan failed" step at the end is what actually fails the job.
       - name: Terraform plan
         id: plan
+        if: env.IS_TRUSTED_SOURCE == 'true'
         run: terraform plan -no-color -input=false -out=tfplan
         continue-on-error: true
 
@@ -82,14 +93,22 @@ jobs:
         env:
           PLAN_OUTCOME: ${{ steps.plan.outcome }}
           PLAN_OUTPUT: ${{ steps.show.outputs.summary }}
+          IS_TRUSTED_SOURCE: ${{ env.IS_TRUSTED_SOURCE }}
         with:
           script: |
             const marker = "<!-- terraform-plan-comment: infra/envs/dev -->";
             const outcome = process.env.PLAN_OUTCOME;
-            let planOutput =
-              outcome === "success"
-                ? process.env.PLAN_OUTPUT || "(no changes)"
-                : "Plan failed - see the workflow run for details.";
+            let planOutput;
+            if (process.env.IS_TRUSTED_SOURCE !== "true") {
+              planOutput =
+                "(plan skipped: this PR is from a fork, so it doesn't get the Azure " +
+                "OIDC credential used to run it -- see the workflow file for why. " +
+                "A maintainer needs to review this and plan/apply it manually.)";
+            } else if (outcome === "success") {
+              planOutput = process.env.PLAN_OUTPUT || "(no changes)";
+            } else {
+              planOutput = "Plan failed - see the workflow run for details.";
+            }
             const maxLen = 60000;
             if (planOutput.length > maxLen) {
               planOutput = planOutput.slice(0, maxLen) + "\n... (truncated, see workflow run)";
