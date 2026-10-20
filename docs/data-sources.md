@@ -13,7 +13,7 @@
 | Limits | 1 request / 2 s and 10,000 requests / 24 h per key. A live run still got HTTP 429 with exactly 2 s between requests, so the client waits 3 s |
 | Datasets | **75** wind power generation (MW), **124** electricity consumption in Finland (MWh/h), **74** electricity production in Finland (MWh/h). All three are 15-minute data from 2023-06-13 and hourly before that. See ADR 0009 for why these and not the 3-minute real-time datasets (181, 193, 192) |
 | Endpoint | `GET /datasets/{id}/data?startTime=…&endTime=…&format=json&pageSize=…&page=…` (times in ISO 8601 UTC) |
-| Paging | `page` starts at 1; `pageSize` max **20,000** (larger returns HTTP 422 "max 20000"). Response: `{"data": [...], "pagination": {"total", "currentPage", "lastPage", "nextPage", ...}}`; `nextPage` is `null` on the last page |
+| Paging | `page` starts at 1; `pageSize` max **20,000** (larger returns HTTP 422 "max 20000"). For small results the response has `"pagination": {"total", "currentPage", "lastPage", "nextPage", ...}`, with `nextPage` `null` on the last page. **For large results (seen with ~98,000 rows) `total`, `lastPage` and `nextPage` are missing** and only `currentPage`, `perPage`, `from`, `to` remain, so keep paging while pages are full |
 | Record | `{"datasetId": 75, "startTime": "2025-01-01T01:45:00.000Z", "endTime": "2025-01-01T02:00:00.000Z", "value": 2260.8}`. Newest first by default |
 
 Quirks:

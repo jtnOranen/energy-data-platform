@@ -68,6 +68,38 @@ def test_retries_429_honouring_retry_after(monkeypatch):
     assert 7.0 in sleeps
 
 
+def test_large_results_without_next_page_keep_paging_while_pages_are_full():
+    # Shape seen in a real backfill: no total/lastPage/nextPage, only currentPage/perPage/from/to.
+    sizes = {1: 3, 2: 3, 3: 1}
+    seen = []
+
+    def handler(request):
+        page = int(request.url.params["page"])
+        seen.append(page)
+        rows = [{"startTime": "2024-01-01T00:00:00.000Z"}] * sizes.get(page, 0)
+        return httpx.Response(
+            200,
+            json={
+                "data": rows,
+                "pagination": {"currentPage": page, "perPage": 3, "from": 0, "to": 3},
+            },
+        )
+
+    pages = list(make_client(handler).fetch(75, START, END, page_size=3))
+    assert [p.record_count for p in pages] == [3, 3, 1]
+    assert seen == [1, 2, 3]
+
+
+def test_full_last_page_without_next_page_does_not_write_an_empty_page():
+    def handler(request):
+        page = int(request.url.params["page"])
+        rows = [{"startTime": "2024-01-01T00:00:00.000Z"}] * (2 if page == 1 else 0)
+        return httpx.Response(200, json={"data": rows, "pagination": {"currentPage": page}})
+
+    pages = list(make_client(handler).fetch(75, START, END, page_size=2))
+    assert [p.number for p in pages] == [1]
+
+
 def test_firewall_block_page_gives_a_clear_error():
     def handler(request):
         return httpx.Response(
