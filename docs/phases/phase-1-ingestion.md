@@ -99,35 +99,33 @@ Tests (no network, per `docs/conventions.md`):
 - FMI: exception report is treated as an error;
 - backfill chunking: a 2024-01-01 → today range splits into chunks within each API's limit.
 
-### 3. CI for `ingestion/`
+### 3. CI/CD for `ingestion/`
 
-`.github/workflows/ingestion.yml`: on PRs touching `ingestion/**`, run `uv sync`,
-`uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`.
+`.github/workflows/ingestion.yml`:
 
-Deployment: see open decision 1.
+- On PRs touching `ingestion/**` (or the workflow file): `uv sync`, `uv run ruff check .`,
+  `uv run ruff format --check .`, `uv run pytest`.
+- On push to `main` (same paths): the same checks, then a deploy job in the `dev` environment that
+  authenticates with OIDC and deploys the function code. The `environment:dev` federated credential from
+  phase 0 already covers this job; the SP's `Contributor` on `rg-energy-dev` covers the deploy.
+- Fork PRs run the checks only, which need no Azure credentials anyway.
+
+This pulls part of phase 4 ("CI/CD for all parts") forward, by the owner's decision (see below).
 
 ### 4. Docs
 
 - `docs/data-sources.md`: all VERIFY items resolved.
-- ADRs for the decisions below once accepted.
+- ADR 0008 (hosting plan) is written with this spec; add more ADRs if implementation forces other lasting
+  decisions.
 - README: how to run the backfill (a few lines).
 
-## Open decisions (owner)
+## Decisions (made by the owner on 2026-10-20)
 
-1. **How the function code gets deployed in this phase.**
-   (a) Add a deploy job to `ingestion.yml` now (push to `main`, OIDC, `dev` environment, same pattern as
-   Terraform). (b) Deploy manually with `func azure functionapp publish` in this phase and add CD in phase 4,
-   which the roadmap defines as "CI/CD for all parts".
-   *Recommendation: (a).* The Terraform workflow already established the pattern, so it's a small
-   addition, and it avoids a manual deploy step that phase 4 would just replace. This pulls a bit of phase 4
-   forward, so it needs your explicit OK.
-2. **Function app name.** `docs/conventions.md` says `func-energy-ingest-dev`, but function app names are
-   globally unique (`*.azurewebsites.net`), like storage accounts. (a) Keep it and hope it's free.
-   (b) Add the random suffix: `func-energy-ingest-dev-<suffix>`, and update the conventions.
-   *Recommendation: (b)*, for the same reason the storage and Key Vault names have one.
-3. **Hosting plan.** (a) Flex Consumption. (b) The older Linux Consumption plan.
-   *Recommendation: (a).* It's the plan Microsoft recommends for new apps, and it supports identity-based
-   host storage, so there's no storage connection string anywhere. Record as an ADR.
+1. **Deploy the function from CI in this phase**, not manually. The deploy job uses the same pattern as the
+   Terraform apply job, and there's no manual deploy step for phase 4 to replace later.
+2. **Function app name gets the random suffix:** `func-energy-ingest-dev-<suffix>`, because function app
+   names are globally unique (`*.azurewebsites.net`). `docs/conventions.md` is updated.
+3. **Flex Consumption hosting plan.** See ADR 0008.
 
 ## Acceptance criteria
 

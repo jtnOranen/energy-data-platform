@@ -7,7 +7,7 @@
 | Resource group | `rg-<project>-<env>` | `rg-energy-dev` |
 | Storage account | `st<project><env><suffix>` (≤ 24, lowercase alphanumeric) | `stenergydevx7k2` |
 | Key Vault | `kv-<project>-<env>-<suffix>` (≤ 24) | `kv-energy-dev-x7k2` |
-| Function app | `func-<project>-ingest-<env>` | `func-energy-ingest-dev` |
+| Function app | `func-<project>-ingest-<env>-<suffix>` (globally unique) | `func-energy-ingest-dev-x7k2` |
 | Databricks workspace | `dbw-<project>-<env>` | `dbw-energy-dev` |
 | Tags (all resources) | `project`, `env`, `owner`, `managed_by=terraform` | |
 | dbt models | `stg_<source>__<entity>`, `int_<entity>_<grain>`, `fct_…`, `dim_…` | `stg_entsoe__day_ahead_price` |
