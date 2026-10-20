@@ -87,3 +87,6 @@ dbt build
 - **Daylight saving time:** a Finnish local day has 92 or 100 quarter-hours on transition days; a UTC day always has 96.
 - **Fingrid rate limit:** 1 request per 2 seconds and 10,000 requests per 24 h per API key.
 - **Storage account and Key Vault names** are globally unique. Key Vault soft delete keeps a name reserved after destroy.
+- **GitHub OIDC federated credential subjects** must include the owner's and repo's immutable numeric IDs
+  (`repo:<owner>@<owner_id>/<repo>@<repo_id>:...`), not just their names — GitHub's token `sub` claim includes
+  them, and Azure rejects a mismatch with `AADSTS700213`. `bootstrap.sh` fetches them via `gh api`.

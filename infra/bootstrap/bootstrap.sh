@@ -97,15 +97,22 @@ fi
 
 echo "==> Federated credentials (OIDC, no client secret)"
 
+# GitHub's OIDC token "sub" claim includes the owner's and repo's immutable numeric IDs
+# (repo:<owner>@<owner_id>/<repo>@<repo_id>:...), not just their names, so the federated
+# credential subject must match that exact format or Azure rejects the token with
+# AADSTS700213. Names can be renamed later without invalidating this.
+read -r OWNER_ID REPO_ID <<< "$(gh api "repos/${GITHUB_OWNER}/${REPO}" --jq '"\(.owner.id) \(.id)"')"
+
 add_federated_credential () {
   local cred_name="$1" subject="$2"
-  local existing
-  existing=$(az ad app federated-credential list --id "$APP_ID" \
-    --query "[?name=='$cred_name'].name | [0]" -o tsv)
-  if [[ -n "$existing" ]]; then
-    echo "    $cred_name already exists"
+  local existing_subject
+  existing_subject=$(az ad app federated-credential list --id "$APP_ID" \
+    --query "[?name=='$cred_name'].subject | [0]" -o tsv)
+  if [[ "$existing_subject" == "$subject" ]]; then
+    echo "    $cred_name already up to date"
   else
-    az ad app federated-credential create --id "$APP_ID" --parameters "$(cat <<JSON
+    local params
+    params=$(cat <<JSON
 {
   "name": "$cred_name",
   "issuer": "https://token.actions.githubusercontent.com",
@@ -113,13 +120,19 @@ add_federated_credential () {
   "audiences": ["api://AzureADTokenExchange"]
 }
 JSON
-)" -o none
-    echo "    created $cred_name"
+)
+    if [[ -z "$existing_subject" ]]; then
+      az ad app federated-credential create --id "$APP_ID" --parameters "$params" -o none
+      echo "    created $cred_name"
+    else
+      az ad app federated-credential update --id "$APP_ID" --federated-credential-id "$cred_name" --parameters "$params" -o none
+      echo "    updated $cred_name (subject had changed)"
+    fi
   fi
 }
 
-add_federated_credential "gh-energy-data-platform-main" "repo:${GITHUB_OWNER}/${REPO}:ref:refs/heads/main"
-add_federated_credential "gh-energy-data-platform-pr" "repo:${GITHUB_OWNER}/${REPO}:pull_request"
+add_federated_credential "gh-energy-data-platform-main" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:ref:refs/heads/main"
+add_federated_credential "gh-energy-data-platform-pr" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:pull_request"
 
 echo "==> Role assignments"
 
