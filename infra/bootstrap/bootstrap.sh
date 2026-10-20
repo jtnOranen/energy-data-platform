@@ -13,11 +13,17 @@
 
 set -euo pipefail
 
+# On Git Bash / MSYS2 (common on Windows), arguments that look like absolute POSIX paths
+# (e.g. "/subscriptions/...") get silently rewritten to Windows paths before reaching
+# az.exe, breaking --scope. This disables that rewriting; harmless on Linux/macOS.
+export MSYS_NO_PATHCONV=1
+
 GITHUB_OWNER="${GITHUB_OWNER:?Set GITHUB_OWNER, e.g. GITHUB_OWNER=jtnOranen ./bootstrap.sh}"
 LOCATION="${LOCATION:-swedencentral}"
 
 REPO="energy-data-platform"
 RESOURCE_GROUP="rg-energy-tfstate"
+DEV_RESOURCE_GROUP="rg-energy-dev"
 CONTAINER_NAME="tfstate"
 SP_NAME="gh-energy-data-platform"
 
@@ -33,6 +39,19 @@ az group create \
   --name "$RESOURCE_GROUP" \
   --location "$LOCATION" \
   --tags project=energy env=tfstate managed_by=bootstrap-script \
+  -o none
+
+# Created here (not by Terraform) so the CI service principal's roles below can be
+# scoped to this resource group instead of the whole subscription -- creating a resource
+# group is itself a subscription-level operation, so Terraform creating it would force
+# the SP to hold subscription-wide Contributor, able to touch anything else in this
+# (personal) subscription. envs/dev/main.tf reads this RG via a data source, not a
+# resource. See docs/adr/0004.
+echo "==> Resource group: $DEV_RESOURCE_GROUP ($LOCATION)"
+az group create \
+  --name "$DEV_RESOURCE_GROUP" \
+  --location "$LOCATION" \
+  --tags project=energy env=dev managed_by=bootstrap-script \
   -o none
 
 echo "==> Terraform state storage account"
@@ -159,11 +178,14 @@ assign_role_if_missing () {
   exit 1
 }
 
-SUBSCRIPTION_SCOPE="/subscriptions/${SUBSCRIPTION_ID}"
+# Scoped to rg-energy-dev only -- never the subscription, and not even
+# rg-energy-tfstate (Terraform never manages anything in that resource group; it only
+# needs data-plane blob access, granted separately below).
+DEV_RG_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${DEV_RESOURCE_GROUP}"
 STORAGE_SCOPE=$(az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
 
-assign_role_if_missing "Contributor" "$SUBSCRIPTION_SCOPE"
-assign_role_if_missing "Role Based Access Control Administrator" "$SUBSCRIPTION_SCOPE"
+assign_role_if_missing "Contributor" "$DEV_RG_SCOPE"
+assign_role_if_missing "Role Based Access Control Administrator" "$DEV_RG_SCOPE"
 assign_role_if_missing "Storage Blob Data Contributor" "$STORAGE_SCOPE"
 
 echo "==> GitHub repo variables (not secrets) on ${GITHUB_OWNER}/${REPO}"
@@ -175,7 +197,8 @@ gh variable set TFSTATE_STORAGE_ACCOUNT --repo "${GITHUB_OWNER}/${REPO}" --body 
 
 echo ""
 echo "==> Done"
-echo "Resource group:    $RESOURCE_GROUP"
+echo "Resource group (tfstate): $RESOURCE_GROUP"
+echo "Resource group (dev):     $DEV_RESOURCE_GROUP"
 echo "Storage account:   $STORAGE_ACCOUNT"
 echo "Blob container:    $CONTAINER_NAME"
 echo "App registration:  $SP_NAME ($APP_ID)"

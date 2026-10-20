@@ -90,3 +90,10 @@ dbt build
 - **GitHub OIDC federated credential subjects** must include the owner's and repo's immutable numeric IDs
   (`repo:<owner>@<owner_id>/<repo>@<repo_id>:...`), not just their names — GitHub's token `sub` claim includes
   them, and Azure rejects a mismatch with `AADSTS700213`. `bootstrap.sh` fetches them via `gh api`.
+- **Git Bash / MSYS2 on Windows rewrites `/subscriptions/...`-style arguments as Windows paths** before
+  they reach `az.exe`, breaking `--scope`. `bootstrap.sh` sets `MSYS_NO_PATHCONV=1` itself; do the same
+  for any ad hoc `az` command with a `/subscriptions/...` scope run directly in Git Bash.
+- **Resource groups are created by `bootstrap.sh`, not Terraform** (`data`, not `resource`, in
+  `envs/dev/main.tf`) — so the CI service principal's roles stay scoped to `rg-energy-dev` instead of
+  the whole (personal) subscription. See ADR 0007. A new resource group in a later phase needs the same
+  treatment, not a Terraform-created one.

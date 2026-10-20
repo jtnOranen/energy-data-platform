@@ -17,10 +17,13 @@ locals {
   }
 }
 
-resource "azurerm_resource_group" "dev" {
-  name     = "rg-energy-dev"
-  location = var.location
-  tags     = local.tags
+# Created by infra/bootstrap/bootstrap.sh, not Terraform: creating a resource group is a
+# subscription-level operation, so having Terraform create it would force the CI service
+# principal to hold subscription-wide Contributor, able to touch anything else in this
+# (personal) subscription. Keeping it a data source lets the SP's roles stay scoped to
+# just this resource group instead. See docs/adr/0004.
+data "azurerm_resource_group" "dev" {
+  name = "rg-energy-dev"
 }
 
 module "storage" {
@@ -30,7 +33,7 @@ module "storage" {
   env                 = "dev"
   suffix              = random_string.suffix.result
   location            = var.location
-  resource_group_name = azurerm_resource_group.dev.name
+  resource_group_name = data.azurerm_resource_group.dev.name
   tags                = local.tags
 }
 
@@ -41,7 +44,7 @@ module "key_vault" {
   env                 = "dev"
   suffix              = random_string.suffix.result
   location            = var.location
-  resource_group_name = azurerm_resource_group.dev.name
+  resource_group_name = data.azurerm_resource_group.dev.name
   tags                = local.tags
 }
 
@@ -50,7 +53,7 @@ module "budget" {
 
   project           = "energy"
   env               = "dev"
-  resource_group_id = azurerm_resource_group.dev.id
+  resource_group_id = data.azurerm_resource_group.dev.id
   budget_amount_eur = var.budget_amount_eur
   alert_email       = var.alert_email
 }
