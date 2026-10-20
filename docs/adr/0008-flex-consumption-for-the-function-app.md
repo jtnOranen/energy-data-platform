@@ -27,5 +27,5 @@ references and the `landing` container.
 No storage account key is stored anywhere, consistent with the rest of the platform. Flex Consumption
 supports fewer regions and language versions than the older plan, so region and Python version support
 in `swedencentral` must be checked before implementation (phase 1, step 0). Its Terraform resource
-(`azurerm_function_app_flex_consumption`) is newer than the classic ones, so check the provider docs for
-its exact arguments.
+(`azurerm_function_app_flex_consumption`) turned out not to support identity-based host storage
+correctly in azurerm 4.81, so the function app is created with azapi instead (ADR 0010).

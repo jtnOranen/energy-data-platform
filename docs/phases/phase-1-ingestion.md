@@ -43,13 +43,15 @@ Fingrid was verified with the key on 2026-10-20: endpoint, paging (max 20,000 pe
 
 New module `infra/modules/function_app/`, called from `envs/dev/main.tf`:
 
-- Log Analytics workspace + workspace-based Application Insights (the function's logs go here).
+- Log Analytics workspace + workspace-based Application Insights (the function's logs go here), with
+  local authentication disabled so the function sends telemetry with its identity.
 - Host storage account for the function (separate from the ADLS account: host storage should not have a
   hierarchical namespace) with a deployment container.
 - Function app, **Flex Consumption** plan, **Python 3.13** (supported on Flex in `swedencentral` until
   2029-10; 3.14 is available too, but staying one release behind the newest is safer for third-party
-  wheels), system-assigned managed identity. Host storage uses the identity (`storage_authentication_type =
-  SystemAssignedIdentity`), not a connection string.
+  wheels), system-assigned managed identity. Host and deployment storage use the identity, not a
+  connection string. The function app is an `azapi_resource`, because azurerm 4.81's Flex resource
+  can't do identity-based host storage correctly (ADR 0010).
 - App settings: `FINGRID_API_KEY` and `ENTSOE_TOKEN` as **Key Vault references**
   (`@Microsoft.KeyVault(SecretUri=...)`), plus the ADLS account name and container. No secret values.
 
@@ -59,7 +61,8 @@ Role assignments (all least privilege, all inside `rg-energy-dev`):
 | --- | --- | --- |
 | Function identity | Key Vault Secrets User | the Key Vault |
 | Function identity | Storage Blob Data Contributor | the `landing` container (not the account) |
-| Function identity | roles Flex Consumption needs on its host storage | host storage account |
+| Function identity | Storage Blob Data Owner (host storage and deployment package) | host storage account |
+| Function identity | Monitoring Metrics Publisher | Application Insights |
 | Owner | Storage Blob Data Contributor | the `landing` container (for the backfill) |
 
 ### 2. Python project (`ingestion/`)

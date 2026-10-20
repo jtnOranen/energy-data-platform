@@ -8,6 +8,10 @@
 | Storage account | `st<project><env><suffix>` (≤ 24, lowercase alphanumeric) | `stenergydevx7k2` |
 | Key Vault | `kv-<project>-<env>-<suffix>` (≤ 24) | `kv-energy-dev-x7k2` |
 | Function app | `func-<project>-ingest-<env>-<suffix>` (globally unique) | `func-energy-ingest-dev-x7k2` |
+| Function host storage | `st<project>fn<env><suffix>` (≤ 24) | `stenergyfndevx7k2` |
+| App Service plan | `asp-<project>-<env>` | `asp-energy-dev` |
+| Log Analytics workspace | `log-<project>-<env>` | `log-energy-dev` |
+| Application Insights | `appi-<project>-<env>` | `appi-energy-dev` |
 | Databricks workspace | `dbw-<project>-<env>` | `dbw-energy-dev` |
 | Tags (all resources) | `project`, `env`, `owner`, `managed_by=terraform` | |
 | dbt models | `stg_<source>__<entity>`, `int_<entity>_<grain>`, `fct_…`, `dim_…` | `stg_entsoe__day_ahead_price` |
