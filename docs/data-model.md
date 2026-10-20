@@ -49,6 +49,6 @@ Gold models have **model contracts** (`contract: {enforced: true}`).
 | sources | `freshness` (warn 3 h, error 12 h — tune after observing) |
 | staging | `unique` + `not_null` on natural keys |
 | intermediate | dbt **unit tests**: 60→15 min expansion; DST transition days |
-| `fct_power_15min` | `unique` + `not_null` on `interval_start_utc`; `relationships` to dims; custom test: every complete UTC day has exactly 96 rows |
+| `fct_power_15min` | `unique` + `not_null` on `interval_start_utc`; `relationships` to dims; custom test: every complete UTC day has exactly 96 rows (the fact is built from a 15-min time spine, because Fingrid has gaps; measures may be null) |
 | `dim_weather_station` | one current row per station |
 | prices | `price_eur_mwh` within a sane range (negative prices are valid) |
