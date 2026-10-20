@@ -95,7 +95,8 @@ dbt build
   for any ad hoc `az` command with a `/subscriptions/...` scope run directly in Git Bash.
 - **The function app is an `azapi_resource`, not `azurerm_function_app_flex_consumption`.** azurerm 4.81 injects
   a keyless `AzureWebJobsStorage` string that breaks identity-based host storage (ADR 0010). Don't "clean it
-  up" back to azurerm until hashicorp/terraform-provider-azurerm#29099 is released.
+  up" back to azurerm until hashicorp/terraform-provider-azurerm#29099 is released. After the function app is
+  first created, restart it once, or its Key Vault references stay `AccessToKeyVaultDenied` (see the module README).
 - **Resource groups are created by `bootstrap.sh`, not Terraform** (`data`, not `resource`, in
   `envs/dev/main.tf`) — so the CI service principal's roles stay scoped to `rg-energy-dev` instead of
   the whole (personal) subscription. See ADR 0007. A new resource group in a later phase needs the same
