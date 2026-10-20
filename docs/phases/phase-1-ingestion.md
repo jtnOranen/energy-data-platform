@@ -32,8 +32,10 @@ Done on 2026-10-20 (results are in `docs/data-sources.md`): Fingrid dataset IDs 
 
 Still open, because they need credentials:
 
-- Fingrid (needs the API key in Key Vault): paging, maximum page size, timestamp fields per record.
 - ENTSO-E (needs the token): FI EIC code, curve type A03 behaviour, what "no data" looks like.
+
+Fingrid was verified with the key on 2026-10-20: endpoint, paging (max 20,000 per page),
+`startTime`/`endTime` per record, and gaps in the data.
 
 ## Deliverables
 

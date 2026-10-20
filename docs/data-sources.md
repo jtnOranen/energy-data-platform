@@ -12,14 +12,22 @@
 | Auth | Free API key (register, subscribe to "Open Data starter"), sent in header `x-api-key` |
 | Limits | 1 request / 2 s and 10,000 requests / 24 h per key |
 | Datasets | **75** wind power generation (MW), **124** electricity consumption in Finland (MWh/h), **74** electricity production in Finland (MWh/h). All three are 15-minute data from 2023-06-13 and hourly before that. See ADR 0009 for why these and not the 3-minute real-time datasets (181, 193, 192) |
-| Endpoint shape | **VERIFY** with a key: data endpoint per dataset, paging parameters and maximum page size, and which timestamp fields each record has |
+| Endpoint | `GET /datasets/{id}/data?startTime=…&endTime=…&format=json&pageSize=…&page=…` (times in ISO 8601 UTC) |
+| Paging | `page` starts at 1; `pageSize` max **20,000** (larger returns HTTP 422 "max 20000"). Response: `{"data": [...], "pagination": {"total", "currentPage", "lastPage", "nextPage", ...}}`; `nextPage` is `null` on the last page |
+| Record | `{"datasetId": 75, "startTime": "2025-01-01T01:45:00.000Z", "endTime": "2025-01-01T02:00:00.000Z", "value": 2260.8}`. Newest first by default |
 
 Quirks:
-- Fingrid's own description of dataset 124 says the value with timestamp 14:15 is the average of
-  14:00–14:15, so timestamps may mark the **end** of the interval. **VERIFY** from the API response
-  whether records carry both a start and an end time. Silver must align every value to the interval
-  start (`interval_start_utc`).
+- Each record has both `startTime` and `endTime` (UTC), so there is no ambiguity about which end of
+  the interval a value belongs to, even though Fingrid's description of dataset 124 talks about
+  end-of-interval timestamps. Use `startTime` as `interval_start_utc`.
+- **The data has gaps.** Dataset 75 for 2024: 34,790 records instead of 35,136 intervals. 377
+  intervals are missing over 79 days, at worst 17 on 2024-09-05. One record spans 30 minutes instead
+  of 15. There are no duplicate start times. Don't assume 96 records per UTC day: build the fact table
+  from a time spine and leave missing intervals null.
+- A window `startTime=00:00, endTime=02:00` returns intervals starting 00:00 … 01:45 (start-inclusive).
 - MWh/h over 15 minutes is the same quantity as average MW, so the three datasets can be compared directly.
+- A malformed `x-api-key` header value gets an HTML "The request is blocked" page (HTTP 403) from
+  Fingrid's firewall, not a JSON 401. A wrong key in Key Vault looks like this.
 
 ## ENTSO-E Transparency Platform
 
