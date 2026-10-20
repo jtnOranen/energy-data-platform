@@ -185,3 +185,10 @@ jobs:
 
       - name: Terraform apply
         run: terraform apply -input=false tfplan
+
+      # A plan right after a successful apply must be empty. If it isn't, something in the
+      # config never converges (e.g. a value recomputed every run, or an attribute Azure
+      # normalises differently), and every later PR would show the same phantom change.
+      # -detailed-exitcode: 0 = no changes, 2 = changes present (fails the step), 1 = error.
+      - name: Verify no changes after apply
+        run: terraform plan -no-color -input=false -detailed-exitcode

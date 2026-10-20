@@ -29,7 +29,9 @@ Creates the Terraform state storage, a service principal with OIDC federated cre
 
 ### Deploy
 
-Open a pull request; merging to `main` deploys everything.
+Open a pull request: CI runs `fmt`, `validate` and `plan` and posts the plan as a comment. Merging to
+`main` applies that plan in the `dev` environment, then runs `plan` once more and fails if it shows any
+change, which catches config that never converges.
 
 ## Design decisions
 

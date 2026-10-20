@@ -69,6 +69,8 @@ infra/
   variables → `validate` → `plan -out=tfplan`.
 - On PR: post the plan as a PR comment (update the same comment on new pushes).
 - On `main`: `terraform apply tfplan`. Use a GitHub environment `dev` for the apply job.
+- After apply, the same job runs `terraform plan -detailed-exitcode` and fails if it reports changes
+  (automates the "plan after apply shows no changes" acceptance criterion below).
 - Concurrency group per branch so two applies never run at once.
 
 ### 4. Repo hygiene
