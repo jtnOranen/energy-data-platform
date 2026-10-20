@@ -11,9 +11,14 @@ dev = [
     "ruff>=0.17.1",
     "tzdata>=2026.5",
 ]
+# Tools run locally by the owner (e.g. ingestion/backfill.py). Not part of the function package.
+ops = [
+    "azure-keyvault-secrets>=4.11.3",
+]
 
 [tool.uv]
 package = false
+default-groups = ["dev", "ops"]
 
 [tool.uv.workspace]
 members = ["ingestion"]
@@ -29,7 +34,8 @@ target-version = "py313"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["energy_ingest", "conftest"]
+known-first-party = ["energy_ingest", "conftest", "backfill", "function_app"]
 
 [tool.pytest.ini_options]
 testpaths = ["ingestion/tests"]
+pythonpath = ["ingestion"] # backfill.py and function_app.py live at the app root
