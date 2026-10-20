@@ -24,12 +24,16 @@ Databricks, bronze tables, dbt, alerting (phase 5). Nothing reads `landing` yet.
 ## Step 0: verify the sources
 
 Before writing any client code, resolve every **VERIFY** in `docs/data-sources.md` against the live
-documentation and update that file in the same PR. In addition, find out:
+documentation and update that file.
 
-- Fingrid: dataset IDs for consumption and total production; page size limit; how paging works.
-- ENTSO-E: maximum time range per A44 request (needed for backfill chunking).
-- FMI: maximum time span per observation query (needed for backfill chunking); whether https works.
-- Azure: Flex Consumption availability and supported Python versions in `swedencentral`.
+Done on 2026-10-20 (results are in `docs/data-sources.md`): Fingrid dataset IDs (switched to the
+15-minute datasets, ADR 0009); ENTSO-E endpoint, rate limit and one-year range limit; FMI https,
+168-hour limit and the `timestep=10` requirement; Flex Consumption in `swedencentral` (Python 3.10–3.14).
+
+Still open, because they need credentials:
+
+- Fingrid (needs the API key in Key Vault): paging, maximum page size, timestamp fields per record.
+- ENTSO-E (needs the token): FI EIC code, curve type A03 behaviour, what "no data" looks like.
 
 ## Deliverables
 
@@ -40,8 +44,9 @@ New module `infra/modules/function_app/`, called from `envs/dev/main.tf`:
 - Log Analytics workspace + workspace-based Application Insights (the function's logs go here).
 - Host storage account for the function (separate from the ADLS account: host storage should not have a
   hierarchical namespace) with a deployment container.
-- Function app, **Flex Consumption** plan, Python 3.12 (or newest supported, see step 0),
-  system-assigned managed identity. Host storage uses the identity (`storage_authentication_type =
+- Function app, **Flex Consumption** plan, **Python 3.13** (supported on Flex in `swedencentral` until
+  2029-10; 3.14 is available too, but staying one release behind the newest is safer for third-party
+  wheels), system-assigned managed identity. Host storage uses the identity (`storage_authentication_type =
   SystemAssignedIdentity`), not a connection string.
 - App settings: `FINGRID_API_KEY` and `ENTSOE_TOKEN` as **Key Vault references**
   (`@Microsoft.KeyVault(SecretUri=...)`), plus the ADLS account name and container. No secret values.
@@ -66,7 +71,7 @@ ingestion/
 │   ├── landing.py          blob path + upload (azure-storage-blob, DefaultAzureCredential)
 │   ├── fingrid.py          client: x-api-key header, paging, 2 s spacing, 429 backoff
 │   ├── entsoe.py           client: securityToken, A44 for 10YFI-1--------U
-│   └── fmi.py              client: WFS stored query per station
+│   └── fmi.py              client: WFS stored query per station, timestep=10, ≤ 168 h per call
 ├── backfill.py             CLI: source, start, end → chunked fetches into landing
 └── tests/
     ├── fixtures/           recorded responses (API key/token stripped from anything saved)
@@ -96,7 +101,8 @@ Tests (no network, per `docs/conventions.md`):
 - Fingrid paging over multi-page fixtures; 429 handling;
 - ENTSO-E: acknowledgement document is treated as "no data", both 60- and 15-minute responses are passed
   through unchanged;
-- FMI: exception report is treated as an error;
+- FMI: exception report (e.g. HTTP 400 "Too long time interval requested") is treated as an error;
+  requests always include `timestep=10`;
 - backfill chunking: a 2024-01-01 → today range splits into chunks within each API's limit.
 
 ### 3. CI/CD for `ingestion/`

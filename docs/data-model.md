@@ -9,8 +9,9 @@ One table per source dataset, raw structure plus metadata.
 
 | Table | Content |
 | --- | --- |
-| `bronze.fingrid_wind_production` | raw Fingrid records |
-| `bronze.fingrid_consumption` | raw Fingrid records |
+| `bronze.fingrid_wind_production` | raw Fingrid records (dataset 75, 15 min) |
+| `bronze.fingrid_consumption` | raw Fingrid records (dataset 124, 15 min) |
+| `bronze.fingrid_production` | raw Fingrid records (dataset 74, 15 min) |
 | `bronze.entsoe_day_ahead_price` | parsed XML points with `period_start`, `resolution`, `position`, `price` |
 | `bronze.fmi_observations` | station, parameter, time, value |
 
@@ -24,7 +25,7 @@ Every bronze table has `_ingested_at` and `_source_file`. Duplicates are expecte
 | `stg_entsoe__day_ahead_price` | source interval | interval start/end computed from period start, resolution and position |
 | `stg_fmi__observations` | station × parameter × 10 min | `NaN` → null |
 | `int_price_15min` | 15 min | 60-min prices expanded to four 15-min rows; 15-min prices as is |
-| `int_power_15min` | 15 min | 3-min MW averaged to 15 min |
+| `int_power_15min` | 15 min | Fingrid 15-min values joined on interval start (timestamps aligned to the interval start, see `docs/data-sources.md`); no averaging needed |
 | `int_weather_15min` | station × 15 min | 10-min values aligned to 15-min intervals (document the rule) |
 
 ## Gold (dbt, `models/marts`) — star schema
