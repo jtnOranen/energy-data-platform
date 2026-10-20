@@ -3,6 +3,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^ingestion/tests/fixtures/ # recorded API responses, kept byte-for-byte
 
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.109.2

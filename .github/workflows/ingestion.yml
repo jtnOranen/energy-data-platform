@@ -1,0 +1,98 @@
+name: Ingestion
+
+on:
+  pull_request:
+    paths:
+      - "ingestion/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".github/workflows/ingestion.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ingestion/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".github/workflows/ingestion.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ruff, pytest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.0 # publishes no floating major tags
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: Pytest
+        run: uv run pytest
+
+  # Only for pushes to main, so fork PRs never reach the Azure credentials (see ADR 0004).
+  deploy:
+    name: deploy
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: ingestion-deploy-dev
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.0
+
+      # The function's remote build installs requirements.txt. It's generated from uv.lock here
+      # rather than committed, so it can't drift. The package itself is deployed as source.
+      - name: Export runtime requirements
+        run: >
+          uv export --package energy-ingest --no-dev --no-emit-workspace --no-hashes --locked
+          --output-file ingestion/requirements.txt
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # The name has a random suffix from Terraform; there's exactly one ingestion app in the RG.
+      - name: Find function app
+        id: app
+        run: |
+          name=$(az functionapp list -g rg-energy-dev \
+            --query "[?starts_with(name, 'func-energy-ingest-dev-')].name | [0]" -o tsv)
+          test -n "$name" || { echo "function app not found"; exit 1; }
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ steps.app.outputs.name }}
+          package: ingestion
+          sku: flexconsumption
+          remote-build: true
+          respect-funcignore: true

@@ -1,0 +1,5 @@
+tests/
+pyproject.toml
+.venv/
+__pycache__/
+local.settings.json

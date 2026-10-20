@@ -20,6 +20,11 @@ __pycache__/
 .venv/
 *.egg-info/
 .pytest_cache/
+.ruff_cache/
+
+# Azure Functions: generated from uv.lock in CI, and local-only settings
+ingestion/requirements.txt
+local.settings.json
 
 # Env
 .env
