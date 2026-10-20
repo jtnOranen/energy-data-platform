@@ -10,7 +10,7 @@
 | Docs | https://data.fingrid.fi/en/instructions, technical docs at https://developer-data.fingrid.fi |
 | Base URL | `https://data.fingrid.fi/api` (returns 401 without a key) |
 | Auth | Free API key (register, subscribe to "Open Data starter"), sent in header `x-api-key` |
-| Limits | 1 request / 2 s and 10,000 requests / 24 h per key |
+| Limits | 1 request / 2 s and 10,000 requests / 24 h per key. A live run still got HTTP 429 with exactly 2 s between requests, so the client waits 3 s |
 | Datasets | **75** wind power generation (MW), **124** electricity consumption in Finland (MWh/h), **74** electricity production in Finland (MWh/h). All three are 15-minute data from 2023-06-13 and hourly before that. See ADR 0009 for why these and not the 3-minute real-time datasets (181, 193, 192) |
 | Endpoint | `GET /datasets/{id}/data?startTime=…&endTime=…&format=json&pageSize=…&page=…` (times in ISO 8601 UTC) |
 | Paging | `page` starts at 1; `pageSize` max **20,000** (larger returns HTTP 422 "max 20000"). Response: `{"data": [...], "pagination": {"total", "currentPage", "lastPage", "nextPage", ...}}`; `nextPage` is `null` on the last page |
@@ -57,11 +57,13 @@ Quirks:
 | Auth | None; users must accept the open data licence |
 | Query | Stored query `fmi::observations::weather::timevaluepair` with `fmisid`, `parameters=t2m,ws_10min`, `starttime`, `endtime` and **`timestep=10`** |
 | Limits | At most **168 hours** per query. A longer range returns HTTP 400 with an `ExceptionReport` ("Too long time interval requested") |
-| Stations | Start with a handful near wind power clusters and population centres. Picked by `fmisid`: Helsinki-Vantaa airport = **100968**; choose the others (e.g. Oulu, Vaasa, Pori) when implementing |
+| Stations | Airports near population centres and the western wind power clusters, verified against the API: Helsinki-Vantaa **100968**, Oulu **101786**, Vaasa **101462**, Pori **101044** |
 
 Quirks:
 - **Without `timestep=10` the query returns 1-minute data**: about ten times the points and the response
   size (one station, two parameters, 7 days: 20,162 points and 6.5 MB versus 2,018 points and 0.66 MB).
+- `starttime` and `endtime` are both **inclusive**: one hour returns 7 ten-minute points per parameter.
+  Consecutive windows therefore share a boundary point; downstream dedupes.
 - Missing values appear as `NaN`. Station metadata can change (handled as SCD2 in dbt).
 
 ## Ingestion rules (all sources)

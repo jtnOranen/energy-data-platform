@@ -68,29 +68,43 @@ Role assignments (all least privilege, all inside `rg-energy-dev`):
 ### 2. Python project (`ingestion/`)
 
 ```
+pyproject.toml              uv workspace root: dev tools (ruff, pytest), ruff/pytest config
+uv.lock, .python-version    locked dependencies, Python 3.13
 ingestion/
-├── pyproject.toml          uv-managed; ruff and pytest config
-├── function_app.py         three timer triggers (Python v2 programming model)
-├── src/ingestion/
-│   ├── window.py           fetch window: now - 48 h → now, UTC, truncated to the hour
+├── pyproject.toml          workspace member `energy-ingest` (runtime dependencies)
+├── function_app.py         timer triggers (Python v2 programming model)
+├── host.json, .funcignore
+├── energy_ingest/          the package, at the app root so the Functions host can import it
+│   ├── window.py           fetch window: now - 48 h → now, UTC, truncated to the hour; split()
 │   ├── landing.py          blob path + upload (azure-storage-blob, DefaultAzureCredential)
-│   ├── fingrid.py          client: x-api-key header, paging, 2 s spacing, 429 backoff
-│   ├── entsoe.py           client: securityToken, A44 for 10YFI-1--------U
-│   └── fmi.py              client: WFS stored query per station, timestep=10, ≤ 168 h per call
+│   ├── transport.py        rate limiter, retries on 429/5xx (Retry-After), SourceError
+│   ├── fingrid.py          client: x-api-key header, paging, 3 s spacing
+│   ├── entsoe.py           client: securityToken, A44 for 10YFI-1--------U (when the token arrives)
+│   ├── fmi.py              client: WFS stored query per station, timestep=10, ≤ 168 h per call
+│   └── run.py              fetch → landing per source, shared by the function and the backfill
 ├── backfill.py             CLI: source, start, end → chunked fetches into landing
 └── tests/
-    ├── fixtures/           recorded responses (API key/token stripped from anything saved)
+    ├── fixtures/           recorded responses (no keys in them)
     └── test_*.py
 ```
+
+A workspace root lets `uv sync` / `uv run pytest` work from the repo root (CLAUDE.md), and dbt can
+join as another member later. `requirements.txt` for the function's remote build is generated from
+`uv.lock` in CI (`uv export`), not committed.
 
 Behaviour:
 
 - **One timer function per source** (Fingrid, ENTSO-E, FMI), so one failing API doesn't stop the others.
   All three Fingrid datasets run sequentially in the Fingrid function, because the rate limit
-  (1 request / 2 s) is per API key.
+  (1 request / 2 s) is per API key. Within a source, one failing dataset or station doesn't stop the
+  others; the run is marked failed at the end.
 - **Write the raw response bytes unchanged.** No parsing beyond what's needed to page and to detect errors.
-- **Path:** `landing/<source>/<dataset>/yyyy=YYYY/mm=MM/dd=DD/<ingested_at>.<ext>`, where the date is the
-  ingestion time in UTC and `<ext>` is `json` or `xml` per source. Never overwrite an existing blob.
+- **Path:** `landing/<source>/<dataset>/yyyy=YYYY/mm=MM/dd=DD/<ingested_at>_<start>_<end>[_<key>]_p<part>.<ext>`,
+  where the date is the ingestion time in UTC, `<key>` identifies e.g. the FMI station, `<part>` is the page
+  or chunk, and `<ext>` is `json` or `xml`. Every response gets its own blob; nothing is overwritten.
+- **ENTSO-E note for later:** day-ahead prices are published around midday for the *next* day, so a window
+  ending "now" only picks a price up once its delivery hour has passed. That's enough for the historical
+  analysis, but the forecast extension would need the ENTSO-E window to reach into the future.
 - **Error responses are failures, not data.** In particular, ENTSO-E returns an
   `Acknowledgement_MarketDocument` (HTTP 200) when there is no data; FMI returns an exception report.
   Log these and don't write them to landing.

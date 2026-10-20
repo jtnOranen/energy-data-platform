@@ -45,7 +45,7 @@ Terraform creates every Azure and Databricks resource. GitHub Actions tests ever
 | Component | Responsibility | Notes |
 | --- | --- | --- |
 | Azure Function (`ingestion/`) | Fetch the three APIs and write raw responses to ADLS | Timer trigger hourly; idempotent; overlap window to catch late data |
-| ADLS Gen2 `landing` container | Immutable raw files | Path: `landing/<source>/<dataset>/yyyy=YYYY/mm=MM/dd=DD/<ingested_at>.json` |
+| ADLS Gen2 `landing` container | Immutable raw files | Path: `landing/<source>/<dataset>/yyyy=YYYY/mm=MM/dd=DD/<ingested_at>_<window_start>_<window_end>[_<key>]_p<part>.<json\|xml>`; date = ingestion date (UTC), `key` = e.g. FMI station |
 | Key Vault | Fingrid API key, ENTSO-E token | Function reads via managed identity (RBAC) |
 | Databricks Auto Loader job | Raw files → bronze Delta tables | Adds `_ingested_at`, `_source_file`; schema evolution `addNewColumns` |
 | dbt (`dbt/`) | bronze → silver → gold | dbt-databricks adapter, serverless SQL warehouse |

@@ -1,0 +1,2 @@
+# Recorded API responses must stay byte-for-byte identical (no line-ending conversion).
+ingestion/tests/fixtures/** -text
