@@ -4,6 +4,10 @@
 *.tfstate.*
 *.tfvars
 !example.tfvars
+# Only envs/*/.terraform.lock.hcl is a real root config lock file; the ones under
+# infra/modules/* are side effects of pre-commit's terraform_validate hook init-ing each
+# module standalone.
+infra/modules/*/.terraform.lock.hcl
 crash.log
 override.tf
 override.tf.json
