@@ -100,6 +100,10 @@ resource "azapi_resource" "function_app" {
   location  = var.location
   tags      = var.tags
 
+  # Azure returns serverFarmId as ".../serverfarms/..." while azurerm gives ".../serverFarms/...".
+  # ARM IDs are case-insensitive, so ignore casing instead of showing a permanent diff.
+  ignore_casing = true
+
   identity {
     type = "SystemAssigned"
   }
