@@ -21,4 +21,5 @@ variable "budget_amount_eur" {
 variable "alert_email" {
   description = "Email address notified when a budget threshold is crossed."
   type        = string
+  sensitive   = true
 }

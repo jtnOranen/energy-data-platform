@@ -12,6 +12,7 @@ variable "owner" {
 variable "owner_object_id" {
   description = "Azure AD object ID of the human owner. Granted Key Vault Secrets Officer on the dev vault so they can add API keys in phase 1."
   type        = string
+  sensitive   = true # repo is public; keep this out of plan output and PR comments
 }
 
 variable "budget_amount_eur" {
@@ -23,4 +24,5 @@ variable "budget_amount_eur" {
 variable "alert_email" {
   description = "Email address notified when the budget threshold is crossed."
   type        = string
+  sensitive   = true # repo is public; keep this out of plan output and PR comments
 }

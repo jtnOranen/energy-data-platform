@@ -1,0 +1,165 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  plan:
+    name: fmt, validate, plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/envs/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.8"
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        run: terraform fmt -recursive -check
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=dev.tfstate"
+
+      - name: Terraform validate
+        run: terraform validate
+
+      # continue-on-error so a failed plan still gets reported in the PR comment below;
+      # the "Fail job if plan failed" step at the end is what actually fails the job.
+      - name: Terraform plan
+        id: plan
+        run: terraform plan -no-color -input=false -out=tfplan
+        continue-on-error: true
+
+      - name: Terraform show (plan as text)
+        id: show
+        if: steps.plan.outcome == 'success'
+        run: |
+          {
+            echo 'summary<<PLAN_EOF'
+            terraform show -no-color tfplan
+            echo PLAN_EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_OUTPUT: ${{ steps.show.outputs.summary }}
+        with:
+          script: |
+            const marker = "<!-- terraform-plan-comment: infra/envs/dev -->";
+            const outcome = process.env.PLAN_OUTCOME;
+            let planOutput =
+              outcome === "success"
+                ? process.env.PLAN_OUTPUT || "(no changes)"
+                : "Plan failed - see the workflow run for details.";
+            const maxLen = 60000;
+            if (planOutput.length > maxLen) {
+              planOutput = planOutput.slice(0, maxLen) + "\n... (truncated, see workflow run)";
+            }
+            const body = `${marker}\n### Terraform plan — \`infra/envs/dev\`\n\nOutcome: \`${outcome}\`\n\n<details><summary>Show plan</summary>\n\n\`\`\`\n${planOutput}\n\`\`\`\n\n</details>`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail job if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      # Only needed by the apply job below, which only runs for a push to main.
+      - name: Upload plan
+        if: steps.plan.outcome == 'success' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/envs/dev/tfplan
+          retention-days: 1
+
+  apply:
+    name: apply
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: dev
+    concurrency:
+      group: terraform-apply-dev
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: infra/envs/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.8"
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=dev.tfstate"
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infra/envs/dev
+
+      - name: Terraform apply
+        run: terraform apply -input=false tfplan
