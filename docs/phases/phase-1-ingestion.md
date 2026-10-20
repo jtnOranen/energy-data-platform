@@ -30,12 +30,10 @@ Done on 2026-10-20 (results are in `docs/data-sources.md`): Fingrid dataset IDs 
 15-minute datasets, ADR 0009); ENTSO-E endpoint, rate limit and one-year range limit; FMI https,
 168-hour limit and the `timestep=10` requirement; Flex Consumption in `swedencentral` (Python 3.10–3.14).
 
-Still open, because they need credentials:
-
-- ENTSO-E (needs the token): FI EIC code, curve type A03 behaviour, what "no data" looks like.
-
 Fingrid was verified with the key on 2026-10-20: endpoint, paging (max 20,000 per page),
-`startTime`/`endTime` per record, and gaps in the data.
+`startTime`/`endTime` per record, and gaps in the data. ENTSO-E was verified with the token the same
+day: FI EIC code, 60- and 15-minute documents, curve type A03 omitting about a third of the periods'
+repeated positions, and "no data" coming back as HTTP 200. Step 0 is complete.
 
 ## Deliverables
 

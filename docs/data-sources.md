@@ -37,16 +37,23 @@ Quirks:
 | Base URL | `https://web-api.tp.entsoe.eu/api` (https only; returns 401 without a token) |
 | Auth | `securityToken` query parameter. Register, then request REST API access by email (subject "Restful API access") |
 | Limits | 400 requests / minute **per token** (not per IP). Exceeding it gives HTTP 429 and a temporary ban of about 10 minutes. Day-ahead prices (article 12.1.D): at most a **one-year** date range per request |
-| Dataset | Day-ahead prices: `documentType=A44`, `in_Domain` = `out_Domain` = `10YFI-1--------U` (bidding zone FI) **VERIFY** with a token |
-| Format | XML (`Publication_MarketDocument`), timestamps in UTC, prices EUR/MWh. A query for energy prices always returns whole days |
+| Dataset | Day-ahead prices: `documentType=A44`, `in_Domain` = `out_Domain` = `10YFI-1--------U` (bidding zone FI, confirmed in responses) |
+| Request | `periodStart` / `periodEnd` as `yyyyMMddHHmm` in UTC; the token is the `securityToken` **query parameter**, so request URLs must never be logged |
+| Format | XML (`Publication_MarketDocument`), timestamps in UTC, prices EUR/MWh (`currency_Unit.name` EUR, `price_Measure_Unit.name` MWH). A query for energy prices always returns whole delivery days |
 
-Quirks:
-- Resolution changed from `PT60M` to `PT15M` for delivery day **2025-10-01** (SDAC 15-minute MTU go-live).
-  Read the `resolution` element per period; never assume it.
-- Periods can omit positions when the price repeats (curve type A03) **VERIFY**; forward-fill within the period.
-- A query with no matching data is reported as an `Acknowledgement_MarketDocument` instead of a price
-  document **VERIFY** (HTTP status and reason codes).
-- The market delivery day follows CET/CEST, i.e. 01:00–01:00 Finnish local time.
+Quirks (verified on 2026-10-20 against 2024–2025 data):
+- Resolution changed from `PT60M` to `PT15M` for delivery day **2025-10-01** (SDAC 15-minute MTU go-live):
+  2025-09-29 has 24 hourly points, 2025-10-02 has 96 quarter-hour points. Read the `resolution` element per
+  period; never assume it.
+- **Every period uses curve type A03, and positions are omitted when the price repeats.** In 2024–2025,
+  226 of 731 periods (31 %) omit at least one position, 734 positions in total. Position 1 is never
+  omitted, so forward-filling within the period always has a starting value. Expand the positions
+  before joining.
+- One period per delivery day (CET/CEST, i.e. 01:00–01:00 Finnish local time): 23 hours on the spring DST
+  day and 25 on the autumn one, so a 15-minute period can have 92 or 100 positions.
+- **"No data" is HTTP 200** with an `Acknowledgement_MarketDocument` (reason code 999, "No matching data
+  found…"), so the status code alone isn't enough. A range over one year is HTTP 400 with the same
+  document type ("…larger than maximum allowed period 'P1Y'…"). Neither is written to landing.
 
 ## Finnish Meteorological Institute (FMI) open data
 
@@ -56,7 +63,7 @@ Quirks:
 | Base URL | `https://opendata.fmi.fi/wfs` (WFS 2.0, https works) |
 | Auth | None; users must accept the open data licence |
 | Query | Stored query `fmi::observations::weather::timevaluepair` with `fmisid`, `parameters=t2m,ws_10min`, `starttime`, `endtime` and **`timestep=10`** |
-| Limits | At most **168 hours** per query. A longer range returns HTTP 400 with an `ExceptionReport` ("Too long time interval requested") |
+| Limits | At most **168 hours** per query; a longer range returns HTTP 400 with an `ExceptionReport` ("Too long time interval requested"). 20,000 requests / day and 600 / 5 minutes (FMI WFS services manual); the client sends at most one per second |
 | Stations | Airports near population centres and the western wind power clusters, verified against the API: Helsinki-Vantaa **100968**, Oulu **101786**, Vaasa **101462**, Pori **101044** |
 
 Quirks:

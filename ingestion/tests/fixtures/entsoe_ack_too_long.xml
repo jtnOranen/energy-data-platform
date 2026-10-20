@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Acknowledgement_MarketDocument
+	xmlns="urn:iec62325.351:tc57wg16:451-1:acknowledgementdocument:7:0">
+	<mRID>8f90472d-f284-4</mRID>
+	<createdDateTime>2026-10-20T13:53:41Z</createdDateTime>
+	<sender_MarketParticipant.mRID codingScheme="A01">10X1001A1001A450</sender_MarketParticipant.mRID>
+	<sender_MarketParticipant.marketRole.type>A32</sender_MarketParticipant.marketRole.type>
+	<receiver_MarketParticipant.mRID codingScheme="A01">10X1001A1001A450</receiver_MarketParticipant.mRID>
+	<receiver_MarketParticipant.marketRole.type>A39</receiver_MarketParticipant.marketRole.type>
+	<received_MarketDocument.createdDateTime>2026-10-20T13:53:41Z</received_MarketDocument.createdDateTime>
+	<Reason>
+		<code>999</code>
+		<text>Provided time interval (2024-01-01T00:00:00Z - 2025-02-01T00:00:00Z) is larger than maximum allowed period &#39;P1Y&#39; for &#39;ENERGY_PRICES:XML&#39; export.</text>
+	</Reason>
+</Acknowledgement_MarketDocument>
