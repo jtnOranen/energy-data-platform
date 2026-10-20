@@ -13,11 +13,17 @@
 
 set -euo pipefail
 
+# On Git Bash / MSYS2 (common on Windows), arguments that look like absolute POSIX paths
+# (e.g. "/subscriptions/...") get silently rewritten to Windows paths before reaching
+# az.exe, breaking --scope. This disables that rewriting; harmless on Linux/macOS.
+export MSYS_NO_PATHCONV=1
+
 GITHUB_OWNER="${GITHUB_OWNER:?Set GITHUB_OWNER, e.g. GITHUB_OWNER=jtnOranen ./bootstrap.sh}"
 LOCATION="${LOCATION:-swedencentral}"
 
 REPO="energy-data-platform"
 RESOURCE_GROUP="rg-energy-tfstate"
+DEV_RESOURCE_GROUP="rg-energy-dev"
 CONTAINER_NAME="tfstate"
 SP_NAME="gh-energy-data-platform"
 
@@ -33,6 +39,19 @@ az group create \
   --name "$RESOURCE_GROUP" \
   --location "$LOCATION" \
   --tags project=energy env=tfstate managed_by=bootstrap-script \
+  -o none
+
+# Created here (not by Terraform) so the CI service principal's roles below can be
+# scoped to this resource group instead of the whole subscription -- creating a resource
+# group is itself a subscription-level operation, so Terraform creating it would force
+# the SP to hold subscription-wide Contributor, able to touch anything else in this
+# (personal) subscription. envs/dev/main.tf reads this RG via a data source, not a
+# resource. See docs/adr/0004.
+echo "==> Resource group: $DEV_RESOURCE_GROUP ($LOCATION)"
+az group create \
+  --name "$DEV_RESOURCE_GROUP" \
+  --location "$LOCATION" \
+  --tags project=energy env=dev managed_by=bootstrap-script \
   -o none
 
 echo "==> Terraform state storage account"
@@ -97,15 +116,22 @@ fi
 
 echo "==> Federated credentials (OIDC, no client secret)"
 
+# GitHub's OIDC token "sub" claim includes the owner's and repo's immutable numeric IDs
+# (repo:<owner>@<owner_id>/<repo>@<repo_id>:...), not just their names, so the federated
+# credential subject must match that exact format or Azure rejects the token with
+# AADSTS700213. Names can be renamed later without invalidating this.
+read -r OWNER_ID REPO_ID <<< "$(gh api "repos/${GITHUB_OWNER}/${REPO}" --jq '"\(.owner.id) \(.id)"')"
+
 add_federated_credential () {
   local cred_name="$1" subject="$2"
-  local existing
-  existing=$(az ad app federated-credential list --id "$APP_ID" \
-    --query "[?name=='$cred_name'].name | [0]" -o tsv)
-  if [[ -n "$existing" ]]; then
-    echo "    $cred_name already exists"
+  local existing_subject
+  existing_subject=$(az ad app federated-credential list --id "$APP_ID" \
+    --query "[?name=='$cred_name'].subject | [0]" -o tsv)
+  if [[ "$existing_subject" == "$subject" ]]; then
+    echo "    $cred_name already up to date"
   else
-    az ad app federated-credential create --id "$APP_ID" --parameters "$(cat <<JSON
+    local params
+    params=$(cat <<JSON
 {
   "name": "$cred_name",
   "issuer": "https://token.actions.githubusercontent.com",
@@ -113,13 +139,22 @@ add_federated_credential () {
   "audiences": ["api://AzureADTokenExchange"]
 }
 JSON
-)" -o none
-    echo "    created $cred_name"
+)
+    if [[ -z "$existing_subject" ]]; then
+      az ad app federated-credential create --id "$APP_ID" --parameters "$params" -o none
+      echo "    created $cred_name"
+    else
+      az ad app federated-credential update --id "$APP_ID" --federated-credential-id "$cred_name" --parameters "$params" -o none
+      echo "    updated $cred_name (subject had changed)"
+    fi
   fi
 }
 
-add_federated_credential "gh-energy-data-platform-main" "repo:${GITHUB_OWNER}/${REPO}:ref:refs/heads/main"
-add_federated_credential "gh-energy-data-platform-pr" "repo:${GITHUB_OWNER}/${REPO}:pull_request"
+add_federated_credential "gh-energy-data-platform-main" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:ref:refs/heads/main"
+add_federated_credential "gh-energy-data-platform-pr" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:pull_request"
+# A job that declares `environment: dev` (the apply job) gets this subject instead of the
+# ref:refs/heads/main one, so it needs its own credential.
+add_federated_credential "gh-energy-data-platform-env-dev" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:environment:dev"
 
 echo "==> Role assignments"
 
@@ -146,11 +181,14 @@ assign_role_if_missing () {
   exit 1
 }
 
-SUBSCRIPTION_SCOPE="/subscriptions/${SUBSCRIPTION_ID}"
+# Scoped to rg-energy-dev only -- never the subscription, and not even
+# rg-energy-tfstate (Terraform never manages anything in that resource group; it only
+# needs data-plane blob access, granted separately below).
+DEV_RG_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${DEV_RESOURCE_GROUP}"
 STORAGE_SCOPE=$(az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
 
-assign_role_if_missing "Contributor" "$SUBSCRIPTION_SCOPE"
-assign_role_if_missing "Role Based Access Control Administrator" "$SUBSCRIPTION_SCOPE"
+assign_role_if_missing "Contributor" "$DEV_RG_SCOPE"
+assign_role_if_missing "Role Based Access Control Administrator" "$DEV_RG_SCOPE"
 assign_role_if_missing "Storage Blob Data Contributor" "$STORAGE_SCOPE"
 
 echo "==> GitHub repo variables (not secrets) on ${GITHUB_OWNER}/${REPO}"
@@ -162,7 +200,8 @@ gh variable set TFSTATE_STORAGE_ACCOUNT --repo "${GITHUB_OWNER}/${REPO}" --body 
 
 echo ""
 echo "==> Done"
-echo "Resource group:    $RESOURCE_GROUP"
+echo "Resource group (tfstate): $RESOURCE_GROUP"
+echo "Resource group (dev):     $DEV_RESOURCE_GROUP"
 echo "Storage account:   $STORAGE_ACCOUNT"
 echo "Blob container:    $CONTAINER_NAME"
 echo "App registration:  $SP_NAME ($APP_ID)"

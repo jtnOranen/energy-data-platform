@@ -1,0 +1,194 @@
+name: Terraform
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  ARM_USE_OIDC: "true"
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  # Terraform reads TF_VAR_<name> automatically, so no -var flags or tfvars file are
+  # needed in CI. None of these are secrets (see CLAUDE.md rule 5); they're stored as
+  # repo variables for the same reason the Azure IDs above are.
+  TF_VAR_owner: ${{ vars.OWNER }}
+  TF_VAR_owner_object_id: ${{ vars.OWNER_OBJECT_ID }}
+  TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+  # Defense in depth for a public repo: the pull_request OIDC subject doesn't say whether
+  # the PR came from a fork. GitHub already gives fork PRs a read-only token by default,
+  # but the steps that request the OIDC token (init/validate/plan) are also gated on the
+  # PR coming from this repository -- in practice, the owner's own branches. See ADR 0004.
+  IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
+jobs:
+  plan:
+    name: fmt, validate, plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/envs/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.8"
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        run: terraform fmt -recursive -check
+
+      - name: Terraform init
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=dev.tfstate"
+
+      - name: Terraform validate
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: terraform validate
+
+      # continue-on-error so a failed plan still gets reported in the PR comment below;
+      # the "Fail job if plan failed" step at the end is what actually fails the job.
+      - name: Terraform plan
+        id: plan
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: terraform plan -no-color -input=false -out=tfplan
+        continue-on-error: true
+
+      - name: Terraform show (plan as text)
+        id: show
+        if: steps.plan.outcome == 'success'
+        run: |
+          {
+            echo 'summary<<PLAN_EOF'
+            terraform show -no-color tfplan
+            echo PLAN_EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAN_OUTCOME: ${{ steps.plan.outcome }}
+          PLAN_OUTPUT: ${{ steps.show.outputs.summary }}
+          IS_TRUSTED_SOURCE: ${{ env.IS_TRUSTED_SOURCE }}
+        with:
+          script: |
+            const marker = "<!-- terraform-plan-comment: infra/envs/dev -->";
+            const outcome = process.env.PLAN_OUTCOME;
+            let planOutput;
+            if (process.env.IS_TRUSTED_SOURCE !== "true") {
+              planOutput =
+                "(plan skipped: this PR is from a fork, so it doesn't get the Azure " +
+                "OIDC credential used to run it -- see the workflow file for why. " +
+                "A maintainer needs to review this and plan/apply it manually.)";
+            } else if (outcome === "success") {
+              planOutput = process.env.PLAN_OUTPUT || "(no changes)";
+            } else {
+              planOutput = "Plan failed - see the workflow run for details.";
+            }
+            const maxLen = 60000;
+            if (planOutput.length > maxLen) {
+              planOutput = planOutput.slice(0, maxLen) + "\n... (truncated, see workflow run)";
+            }
+            const body = `${marker}\n### Terraform plan — \`infra/envs/dev\`\n\nOutcome: \`${outcome}\`\n\n<details><summary>Show plan</summary>\n\n\`\`\`\n${planOutput}\n\`\`\`\n\n</details>`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail job if plan failed
+        if: steps.plan.outcome == 'failure'
+        run: exit 1
+
+      # Only needed by the apply job below, which only runs for a push to main.
+      - name: Upload plan
+        if: steps.plan.outcome == 'success' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infra/envs/dev/tfplan
+          retention-days: 1
+
+  apply:
+    name: apply
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: dev
+    concurrency:
+      group: terraform-apply-dev
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: infra/envs/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.8"
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TFSTATE_RESOURCE_GROUP }}" \
+            -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=dev.tfstate"
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infra/envs/dev
+
+      - name: Terraform apply
+        run: terraform apply -input=false tfplan
+
+      # A plan right after a successful apply must be empty. If it isn't, something in the
+      # config never converges (e.g. a value recomputed every run, or an attribute Azure
+      # normalises differently), and every later PR would show the same phantom change.
+      # -detailed-exitcode: 0 = no changes, 2 = changes present (fails the step), 1 = error.
+      - name: Verify no changes after apply
+        run: terraform plan -no-color -input=false -detailed-exitcode
