@@ -66,11 +66,22 @@ class FingridClient:
                 limiter=self._limiter,
             )
             body = _parse(response, dataset_id)
-            yield Page(number=page, content=response.content, record_count=len(body["data"]))
-            next_page = body["pagination"].get("nextPage")
+            records = len(body["data"])
+            if records == 0 and page > 1:
+                return  # ran past the end; nothing to write
+            yield Page(number=page, content=response.content, record_count=records)
+            next_page = _next_page(body["pagination"], page, records, page_size)
             if not next_page:
                 return
             page = next_page
+
+
+def _next_page(pagination: dict, page: int, records: int, page_size: int) -> int | None:
+    # For large results Fingrid omits total/lastPage/nextPage and only returns currentPage,
+    # perPage, from and to. Then a full page means there may be more.
+    if "nextPage" in pagination:
+        return pagination["nextPage"]
+    return page + 1 if records == page_size else None
 
 
 def _parse(response: httpx.Response, dataset_id: int) -> dict:
