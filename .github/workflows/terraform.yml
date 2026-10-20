@@ -21,6 +21,12 @@ env:
   ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  # Terraform reads TF_VAR_<name> automatically, so no -var flags or tfvars file are
+  # needed in CI. None of these are secrets (see CLAUDE.md rule 5); they're stored as
+  # repo variables for the same reason the Azure IDs above are.
+  TF_VAR_owner: ${{ vars.OWNER }}
+  TF_VAR_owner_object_id: ${{ vars.OWNER_OBJECT_ID }}
+  TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
 
 jobs:
   plan:
