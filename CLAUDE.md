@@ -101,8 +101,10 @@ dbt build
   `envs/dev/main.tf`) — so the CI service principal's roles stay scoped to `rg-energy-dev` instead of
   the whole (personal) subscription. See ADR 0007. A new resource group in a later phase needs the same
   treatment, not a Terraform-created one.
-- **The Databricks workspace is created by `bootstrap.sh` too** (data source in Terraform), because its
-  managed resource group is a subscription-level operation (ADR 0012). Don't move it into Terraform.
+- **The Databricks workspace is created by `bootstrap.sh` too** (data source in Terraform), so the CI
+  SP needs no subscription-level rights (ADR 0012). Don't move it into Terraform. It is a **serverless**
+  workspace (ADR 0013): a hybrid one (the CLI default) keeps a NAT gateway billing ~30 €/month in a
+  managed resource group outside the budget's scope.
   Unity Catalog objects and the access connector *are* Terraform. `bootstrap.sh` also makes the CI
   service principal a workspace admin: with GitHub OIDC auth (`github-oidc-azure`) Databricks doesn't
   auto-provision a Contributor SP the way it does with a client secret.

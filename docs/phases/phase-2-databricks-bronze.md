@@ -76,9 +76,10 @@ workspace and the access connector exist and their roles have propagated.
 
 `infra/bootstrap/bootstrap.sh` creates the workspace (ADR 0012), run by the owner:
 
-- `dbw-energy-dev` in `rg-energy-dev`, **Premium** SKU (required for Unity Catalog), managed resource
-  group `rg-energy-dev-dbw-managed`, no VNet injection (serverless doesn't use the workspace VNet, and
-  VNet injection adds cost and setup for nothing here). Idempotent like the rest of the script.
+- `dbw-energy-dev` in `rg-energy-dev`, **Premium** SKU (required for Unity Catalog), **serverless
+  compute mode** (ADR 0013): no classic compute plane, so no managed VNet, NAT gateway, public IP or
+  DBFS storage. Idempotent like the rest of the script, and it warns if the workspace isn't serverless.
+  (The first workspace defaulted to hybrid and was recreated; see ADR 0013.)
 
 Terraform reads it with `data "azurerm_databricks_workspace"` and adds, in a new module
 `infra/modules/databricks/`:

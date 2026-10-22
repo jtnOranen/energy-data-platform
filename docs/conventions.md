@@ -13,7 +13,6 @@
 | Log Analytics workspace | `log-<project>-<env>` | `log-energy-dev` |
 | Application Insights | `appi-<project>-<env>` | `appi-energy-dev` |
 | Databricks workspace | `dbw-<project>-<env>` | `dbw-energy-dev` |
-| Databricks managed resource group | `rg-<project>-<env>-dbw-managed` | `rg-energy-dev-dbw-managed` |
 | Databricks access connector | `dbac-<project>-<env>` | `dbac-energy-dev` |
 | ADLS containers | `landing` (raw files), `lake` (Unity Catalog managed storage) | |
 | Tags (all resources) | `project`, `env`, `owner`, `managed_by=terraform` | |
