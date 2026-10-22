@@ -50,7 +50,8 @@ PR that needs them, and the outcome is recorded here.
    (browser login). **Token path confirmed 2026-10-22** with an `az` token: `dbt debug` connects
    (the SQL connector first tries a token exchange, logs a warning, and uses the token as is) and
    `dbt build` ran staging. The `dev` target takes the same token from `DBT_DATABRICKS_TOKEN` when
-   set and falls back to OAuth otherwise; the OAuth login is confirmed on the owner's first run.
+   set and falls back to OAuth otherwise; the owner's OAuth browser login passed `dbt debug`
+   the same day.
 6. **Data checks on bronze** (SQL on the warehouse, once it exists): does any delivery day have both a
    `PT60M` and a `PT15M` series? Do repeated fetches of a delivery day ever differ (revision number,
    omitted positions)? How many Fingrid records span more than 15 minutes? Are all FMI timestamps on
