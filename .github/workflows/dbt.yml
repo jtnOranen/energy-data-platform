@@ -1,0 +1,76 @@
+name: dbt
+
+on:
+  pull_request:
+    paths:
+      - "dbt/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/dbt.yml"
+  push:
+    branches: [main]
+    paths:
+      - "dbt/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/dbt.yml"
+
+permissions:
+  contents: read
+
+env:
+  DBT_PROFILES_DIR: .
+  # Same fork-PR gate as terraform.yml: only this repository's own branches get the OIDC token.
+  IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
+# Parse and lint only in phase 3 (phase 3 spec, decision 3): unit and data tests run in the job and
+# locally; slim CI in pr_<n> schemas comes in phase 4. The dbt templater compiles the project, which
+# opens a warehouse connection (step 0 item 8), so linting needs a token; it runs no models.
+jobs:
+  check:
+    name: dbt parse, sqlfluff
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.0 # publishes no floating major tags
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked --group dbt
+
+      - name: dbt deps
+        run: uv run dbt deps
+
+      - name: dbt parse
+        run: uv run dbt parse --target ci
+
+      - name: Azure login (OIDC)
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # An Entra ID token for the Azure Databricks application (fixed app ID), valid about an hour.
+      # No PAT or secret (step 0 item 5).
+      - name: Databricks token
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: |
+          token=$(az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d --query accessToken -o tsv)
+          echo "::add-mask::$token"
+          echo "DBT_DATABRICKS_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: sqlfluff lint
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: uv run sqlfluff lint models

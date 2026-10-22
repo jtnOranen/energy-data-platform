@@ -6,6 +6,13 @@ requires-python = ">=3.13,<3.14"
 dependencies = ["energy-ingest", "energy-bronze"]
 
 [dependency-groups]
+# dbt and its linter (dbt/). Not a default group: only the dbt CI job and local dbt work need it
+# (`uv sync --group dbt`). Pinned to the version the Databricks job installs (phase 3 spec).
+dbt = [
+    "dbt-databricks==1.12.7",
+    "sqlfluff>=4.4.0",
+    "sqlfluff-templater-dbt>=4.4.0",
+]
 dev = [
     "pytest>=9.1.1",
     "ruff>=0.17.1",

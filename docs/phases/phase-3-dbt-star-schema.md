@@ -47,16 +47,34 @@ PR that needs them, and the outcome is recorded here.
 5. **Auth:** CI gets an Entra ID token for the Azure Databricks resource after `azure/login` with OIDC
    (`az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`) and passes it to dbt
    as `token`, so no PAT or secret. Locally the owner uses dbt-databricks' `auth_type: oauth`
-   (browser login). Confirm both work against the warehouse.
+   (browser login). **Token path confirmed 2026-10-22** with an `az` token: `dbt debug` connects
+   (the SQL connector first tries a token exchange, logs a warning, and uses the token as is) and
+   `dbt build` ran staging. The `dev` target takes the same token from `DBT_DATABRICKS_TOKEN` when
+   set and falls back to OAuth otherwise; the OAuth login is confirmed on the owner's first run.
 6. **Data checks on bronze** (SQL on the warehouse, once it exists): does any delivery day have both a
    `PT60M` and a `PT15M` series? Do repeated fetches of a delivery day ever differ (revision number,
    omitted positions)? How many Fingrid records span more than 15 minutes? Are all FMI timestamps on
    10-minute marks? The answers fix the staging rules below or confirm them.
-7. **Price range limits:** the SDAC harmonised minimum and maximum clearing prices (−500 and +4,000
-   EUR/MWh when last checked; the maximum rises automatically after extreme prices), for the range test.
-8. **sqlfluff:** does the dbt templater need a warehouse connection to lint (it compiles the project,
-   and `is_incremental()` checks whether a table exists)? If yes, the lint job uses the OIDC token from
-   item 5.
+   **Checked 2026-10-22** on the bronze tables:
+   - No delivery day has both grains. 639 hourly periods (two 23-hour, one 25-hour) and 387
+     quarter-hour periods (one 23-hour, one 25-hour), 2024-01-01 to 2026-10-22.
+   - Repeated fetches of a delivery period never differ: one revision each, same points, same prices.
+     Deduplicating per period is still the safe rule if ENTSO-E ever republishes.
+   - Fingrid: one 30-minute record each in wind (2024-11-15 18:00) and consumption (2025-05-08
+     11:30), with no 15-minute records overlapping them, so splitting them is right. Two intervals
+     per dataset have different values across fetches: the **newest interval of a fetch is provisional**
+     and the next hourly fetch revises it, which "latest fetch wins" handles.
+   - FMI: every timestamp is on a 10-minute mark, 224 `NaN`s, no conflicting values; after
+     deduplication exactly 144 points per station, parameter and day (no gaps).
+   - Prices range from −21.39 to 1,896.00 EUR/MWh.
+7. **Price range limits:** the SDAC harmonised minimum and maximum clearing prices, for the range
+   test. **Checked 2026-10-22:** ACER decision 02/2026 sets the reference values at −500 and +4,000
+   EUR/MWh; the minimum moved to **−600** for delivery from 2026-05-29 after two extreme-price events
+   (SDAC communication, 2026-05-07). Both limits move automatically, so the test uses project vars
+   (`price_min_eur_mwh`, `price_max_eur_mwh`) and only warns.
+8. **sqlfluff:** does the dbt templater need a warehouse connection to lint? **Yes, confirmed
+   2026-10-22:** without a token, compiling the first model fails on authentication. The lint job
+   uses the OIDC token from item 5. `dbt parse` needs no connection, so it runs for fork PRs too.
 
 ## Deliverables
 
