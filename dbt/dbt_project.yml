@@ -1,0 +1,17 @@
+name: energy
+version: "1.0.0"
+profile: energy
+
+# Silver holds staging (and, later, intermediate models, seeds and the snapshot); gold the star
+# schema. Terraform creates both schemas; generate_schema_name decides the real name per target.
+models:
+  energy:
+    staging:
+      +schema: silver
+      +materialized: view
+
+vars:
+  # SDAC harmonised clearing price limits (phase 3 spec, step 0 item 7). They move automatically
+  # after extreme prices, so the range test only warns.
+  price_min_eur_mwh: -600
+  price_max_eur_mwh: 4000

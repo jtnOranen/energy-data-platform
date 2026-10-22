@@ -78,9 +78,10 @@ terraform plan
 # Databricks (from databricks/); bronze tests need `uv sync --group spark` and Java (CI has both)
 databricks bundle validate
 
-# dbt (from dbt/)
-dbt deps
-dbt build
+# dbt (from dbt/; needs `uv sync --group dbt`, DBT_PROFILES_DIR=. and a login, see dbt/README.md)
+uv run dbt deps
+uv run dbt build                # target dev: writes to dev_silver / dev_gold only
+uv run sqlfluff lint models
 ```
 
 ## Things that are easy to get wrong here

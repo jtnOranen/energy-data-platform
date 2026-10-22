@@ -1,0 +1,180 @@
+models:
+  - name: stg_fingrid__wind_production
+    description: >
+      Fingrid wind production, typed and deduplicated: one row per interval, the latest fetch
+      wins. Mostly 15-minute intervals; a few records span longer (step 0 item 6), and the data has
+      gaps, which stay gaps here.
+    columns:
+      - name: interval_start_utc
+        description: Start of the interval (Fingrid startTime), UTC.
+        data_tests:
+          - unique
+          - not_null
+      - name: interval_end_utc
+        description: End of the interval (Fingrid endTime), UTC.
+        data_tests:
+          - not_null
+      - name: wind_production_mw
+        description: Wind power generation in Finland, average MW over the interval (Fingrid dataset 75).
+        data_tests:
+          - not_null
+      - name: _ingested_at
+        description: Fetch time of the file the row came from (UTC).
+
+  - name: stg_fingrid__consumption
+    description: >
+      Fingrid consumption, typed and deduplicated: one row per interval, the latest fetch
+      wins. Mostly 15-minute intervals; a few records span longer (step 0 item 6), and the data has
+      gaps, which stay gaps here.
+    columns:
+      - name: interval_start_utc
+        description: Start of the interval (Fingrid startTime), UTC.
+        data_tests:
+          - unique
+          - not_null
+      - name: interval_end_utc
+        description: End of the interval (Fingrid endTime), UTC.
+        data_tests:
+          - not_null
+      - name: consumption_mw
+        description: Electricity consumption in Finland; MWh/h over 15 minutes, which equals average MW (Fingrid dataset 124).
+        data_tests:
+          - not_null
+      - name: _ingested_at
+        description: Fetch time of the file the row came from (UTC).
+
+  - name: stg_fingrid__production
+    description: >
+      Fingrid production, typed and deduplicated: one row per interval, the latest fetch
+      wins. Mostly 15-minute intervals; a few records span longer (step 0 item 6), and the data has
+      gaps, which stay gaps here.
+    columns:
+      - name: interval_start_utc
+        description: Start of the interval (Fingrid startTime), UTC.
+        data_tests:
+          - unique
+          - not_null
+      - name: interval_end_utc
+        description: End of the interval (Fingrid endTime), UTC.
+        data_tests:
+          - not_null
+      - name: production_mw
+        description: Electricity production in Finland; MWh/h over 15 minutes, which equals average MW (Fingrid dataset 74).
+        data_tests:
+          - not_null
+      - name: _ingested_at
+        description: Fetch time of the file the row came from (UTC).
+
+  - name: stg_entsoe__day_ahead_price
+    description: >
+      ENTSO-E day-ahead prices for FI, one row per published point of the latest fetch of each
+      delivery period (highest revision, then latest fetch). Positions omitted by curve type A03 are
+      still missing here; int_price_15min fills them.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [interval_start_utc, resolution_minutes]
+    columns:
+      - name: interval_start_utc
+        description: Start of the price interval, period start + (point_position − 1) × resolution, UTC.
+        data_tests:
+          - not_null
+      - name: resolution_minutes
+        description: Length of the price interval in minutes (60 before delivery day 2025-10-01, then 15).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [60, 15]
+                quote: false
+      - name: price_eur_mwh
+        description: Day-ahead price, EUR/MWh. Negative prices are valid.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: "{{ var('price_min_eur_mwh') }}"
+                max_value: "{{ var('price_max_eur_mwh') }}"
+              config:
+                severity: warn
+      - name: period_start_utc
+        description: Start of the delivery period (one per delivery day, 23–25 hours), UTC.
+        data_tests:
+          - not_null
+      - name: period_end_utc
+        description: End of the delivery period, UTC.
+        data_tests:
+          - not_null
+      - name: point_position
+        description: 1-based position of the point within the period.
+        data_tests:
+          - not_null
+      - name: resolution
+        description: Resolution as ENTSO-E sends it.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [PT60M, PT15M]
+      - name: in_domain
+        description: Bidding zone (EIC code).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [10YFI-1--------U]
+      - name: currency_unit
+        description: Currency of the price.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EUR]
+      - name: price_measure_unit
+        description: Unit the price is per.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [MWH]
+      - name: curve_type
+        description: ENTSO-E curve type; A03 means repeated prices are omitted.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [A03]
+      - name: document_mrid
+        description: ID of the published document the point came from.
+      - name: revision_number
+        description: Revision of that document.
+      - name: _ingested_at
+        description: Fetch time of the chosen document (UTC).
+
+  - name: stg_fmi__observations
+    description: >
+      FMI 10-minute observations, typed and deduplicated (consecutive fetches share a boundary point
+      and overlap 48 hours; the latest fetch wins). Missing values (NaN) are null.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [fmisid, parameter, observed_at_utc]
+    columns:
+      - name: fmisid
+        description: FMI station ID.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [100968, 101786, 101462, 101044]
+                quote: false
+      - name: parameter
+        description: t2m = air temperature (°C), ws_10min = 10-minute average wind speed (m/s).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [t2m, ws_10min]
+      - name: observed_at_utc
+        description: Observation time, UTC (always on a 10-minute mark).
+        data_tests:
+          - not_null
+      - name: observation_value
+        description: Observed value in the parameter's unit; null where FMI sent NaN.
+      - name: _ingested_at
+        description: Fetch time of the file the row came from (UTC).

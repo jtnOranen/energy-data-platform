@@ -1,0 +1,36 @@
+# No secrets here: every target reads its token from the environment or logs in interactively.
+# Host and HTTP path aren't secret (they're also in databricks/databricks.yml and Terraform outputs).
+energy:
+  target: dev
+  outputs:
+    # The owner, locally: browser login (OAuth U2M), or an Entra ID token from `az` in
+    # DBT_DATABRICKS_TOKEN if set (dbt/README.md). Writes to dev_silver / dev_gold.
+    dev:
+      type: databricks
+      host: "{{ env_var('DBT_DATABRICKS_HOST', 'adb-7405610438268005.5.azuredatabricks.net') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/f5e7a914313e58c9') }}"
+      catalog: energy
+      schema: dev
+      auth_type: oauth
+      token: "{{ env_var('DBT_DATABRICKS_TOKEN', '') }}"
+      threads: 4
+
+    # GitHub Actions: an Entra ID token for Azure Databricks from the OIDC login (no PAT, no secret).
+    ci:
+      type: databricks
+      host: "{{ env_var('DBT_DATABRICKS_HOST', 'adb-7405610438268005.5.azuredatabricks.net') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/f5e7a914313e58c9') }}"
+      catalog: energy
+      schema: ci
+      token: "{{ env_var('DBT_DATABRICKS_TOKEN', '') }}"
+      threads: 4
+
+    # The Databricks job (phase 3, PR E): Databricks injects DBT_ACCESS_TOKEN for the run-as principal.
+    prod:
+      type: databricks
+      host: "{{ env_var('DBT_DATABRICKS_HOST', 'adb-7405610438268005.5.azuredatabricks.net') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/f5e7a914313e58c9') }}"
+      catalog: energy
+      schema: prod
+      token: "{{ env_var('DBT_ACCESS_TOKEN', '') }}"
+      threads: 4

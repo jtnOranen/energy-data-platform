@@ -1,0 +1,28 @@
+sources:
+  - name: bronze
+    description: >
+      Raw records loaded from landing by Auto Loader every 6 hours (phase 2). Every column is a
+      string as the source sent it; duplicates are expected, because each fetch overlaps the
+      previous 48 hours.
+    database: energy
+    schema: bronze
+    config:
+      # The fetch time from the file name, so freshness covers the whole pipeline from the API.
+      # Bronze loads every 6 hours (roadmap backlog), so 8 hours is late and 24 hours is broken.
+      loaded_at_field: _ingested_at
+      freshness:
+        warn_after: {count: 8, period: hour}
+        error_after: {count: 24, period: hour}
+    tables:
+      - name: fingrid_wind_production
+        description: Fingrid dataset 75, wind power generation (MW), one row per 15-minute record.
+      - name: fingrid_consumption
+        description: Fingrid dataset 124, electricity consumption in Finland (MWh/h), 15-minute records.
+      - name: fingrid_production
+        description: Fingrid dataset 74, electricity production in Finland (MWh/h), 15-minute records.
+      - name: entsoe_day_ahead_price
+        description: >
+          ENTSO-E day-ahead prices for bidding zone FI, one row per XML Point. Curve type A03 omits
+          positions whose price repeats the previous one.
+      - name: fmi_observations
+        description: FMI 10-minute observations (t2m, ws_10min) for four stations, one row per time-value pair.

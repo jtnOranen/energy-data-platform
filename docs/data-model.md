@@ -23,9 +23,9 @@ Duplicates are expected (overlapping fetch windows).
 
 | Model | Grain | Logic |
 | --- | --- | --- |
-| `stg_fingrid__wind_production` | source timestamp | typed, deduped on (dataset, start_time) keeping latest `_ingested_at` |
-| `stg_entsoe__day_ahead_price` | source interval | interval start/end computed from period start, resolution and position |
-| `stg_fmi__observations` | station × parameter × 10 min | `NaN` → null |
+| `stg_fingrid__wind_production`, `stg_fingrid__consumption`, `stg_fingrid__production` | `interval_start_utc` | typed, deduped keeping the latest `_ingested_at` (the newest interval of a fetch is often revised by the next one) |
+| `stg_entsoe__day_ahead_price` | `interval_start_utc`, `resolution_minutes` | the latest fetch of each delivery period, chosen as a whole (highest revision, then latest `_ingested_at`); `interval_start_utc` = period start + (position − 1) × resolution; omitted A03 positions still missing |
+| `stg_fmi__observations` | `fmisid`, `parameter`, `observed_at_utc` | `NaN` → null; deduped keeping the latest `_ingested_at` |
 | `int_price_15min` | 15 min | Omitted A03 positions forward-filled within each period first (about a third of periods have gaps); then 60-min prices expanded to four 15-min rows, 15-min prices as is |
 | `int_power_15min` | 15 min | Fingrid 15-min values joined on interval start (timestamps aligned to the interval start, see `docs/data-sources.md`); no averaging needed |
 | `int_weather_15min` | station × 15 min | 10-min values aligned to 15-min intervals (document the rule) |
