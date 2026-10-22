@@ -14,6 +14,7 @@
 | Application Insights | `appi-<project>-<env>` | `appi-energy-dev` |
 | Databricks workspace | `dbw-<project>-<env>` | `dbw-energy-dev` |
 | Databricks access connector | `dbac-<project>-<env>` | `dbac-energy-dev` |
+| Databricks SQL warehouse | `<project>-<env>` | `energy-dev` |
 | ADLS containers | `landing` (raw files), `lake` (Unity Catalog managed storage) | |
 | Tags (all resources) | `project`, `env`, `owner`, `managed_by=terraform` | |
 | dbt models | `stg_<source>__<entity>`, `int_<entity>_<grain>`, `fct_…`, `dim_…` | `stg_entsoe__day_ahead_price` |

@@ -29,6 +29,6 @@ variable "lake_container_name" {
 }
 
 variable "owner_user_name" {
-  description = "Owner's Databricks user name (their Entra ID user principal name), granted read access."
+  description = "Owner's Databricks user name (their Entra ID user principal name), granted read access and CREATE SCHEMA for dbt dev schemas."
   type        = string
 }

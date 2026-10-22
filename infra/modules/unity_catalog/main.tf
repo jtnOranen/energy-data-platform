@@ -50,6 +50,21 @@ resource "databricks_schema" "bronze" {
   comment      = "Raw records loaded from landing by Auto Loader, one table per source dataset."
 }
 
+# dbt writes staging and intermediate models, seeds and the snapshot to silver, the star schema to
+# gold. Terraform creates them, like bronze, so the CI SP owns every schema and all grants live here;
+# dbt creates only the owner's dev schemas and, in phase 4, the PR schemas (phase 3 spec, decision 2).
+resource "databricks_schema" "silver" {
+  catalog_name = databricks_catalog.this.name
+  name         = "silver"
+  comment      = "dbt staging and intermediate models: typed, deduplicated, aligned to 15 minutes."
+}
+
+resource "databricks_schema" "gold" {
+  catalog_name = databricks_catalog.this.name
+  name         = "gold"
+  comment      = "dbt star schema at a 15-minute grain, for the report."
+}
+
 # Auto Loader checkpoints and schema tracking, one directory per bronze table.
 resource "databricks_volume" "checkpoints" {
   catalog_name = databricks_catalog.this.name
@@ -60,13 +75,15 @@ resource "databricks_volume" "checkpoints" {
 }
 
 # The owner can read everything in the catalog and explore the raw files; changes go through
-# Terraform and the bundle. databricks_grants is authoritative for each securable.
+# Terraform and the bundle. CREATE_SCHEMA lets local dbt runs create the owner's own dev schemas
+# (dev_silver, dev_gold); the owner owns those, but still can't change the schemas the CI SP owns.
+# databricks_grants is authoritative for each securable.
 resource "databricks_grants" "catalog" {
   catalog = databricks_catalog.this.name
 
   grant {
     principal  = var.owner_user_name
-    privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT", "READ_VOLUME"]
+    privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT", "READ_VOLUME", "CREATE_SCHEMA"]
   }
 }
 

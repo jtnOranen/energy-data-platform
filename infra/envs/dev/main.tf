@@ -133,3 +133,12 @@ module "unity_catalog" {
   lake_container_name    = module.storage.lake_container_name
   owner_user_name        = var.owner
 }
+
+module "sql_warehouse" {
+  source = "../../modules/sql_warehouse"
+
+  project         = "energy"
+  env             = "dev"
+  tags            = local.tags
+  owner_user_name = var.owner
+}

@@ -33,6 +33,16 @@ output "databricks_catalog_name" {
   value       = module.unity_catalog.catalog_name
 }
 
+output "databricks_sql_warehouse_id" {
+  description = "ID of the serverless SQL warehouse dbt runs on."
+  value       = module.sql_warehouse.warehouse_id
+}
+
+output "databricks_sql_warehouse_http_path" {
+  description = "HTTP path of the SQL warehouse, for dbt profiles."
+  value       = module.sql_warehouse.http_path
+}
+
 output "databricks_checkpoints_volume_path" {
   description = "Volume path for Auto Loader checkpoints."
   value       = module.unity_catalog.checkpoints_volume_path
