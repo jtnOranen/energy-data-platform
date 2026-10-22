@@ -72,7 +72,7 @@ terraform fmt -recursive -check
 terraform validate
 terraform plan
 
-# Databricks (from databricks/)
+# Databricks (from databricks/); bronze tests need `uv sync --group spark` and Java (CI has both)
 databricks bundle validate
 
 # dbt (from dbt/)

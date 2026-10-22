@@ -1,0 +1,55 @@
+resources:
+  jobs:
+    bronze_load:
+      name: bronze_load
+      description: >
+        Appends new landing files to the energy.bronze tables with Auto Loader. One task per source,
+        so one failing API's files don't hold up the others.
+
+      # :30 every hour, after the ingestion functions (:05/:10/:15). See the phase 2 spec.
+      schedule:
+        quartz_cron_expression: "0 30 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      max_concurrent_runs: 1
+
+      # Serverless jobs compute (ADR 0011). Standard mode is cheaper and may start a few minutes
+      # later, which doesn't matter for an hourly job.
+      performance_target: STANDARD
+      environments:
+        - environment_key: bronze
+          spec:
+            environment_version: "6"
+            dependencies:
+              - ../dist/*.whl
+
+      tasks:
+        - task_key: fingrid
+          environment_key: bronze
+          max_retries: 1
+          min_retry_interval_millis: 300000
+          python_wheel_task:
+            package_name: energy_bronze
+            entry_point: load-bronze
+            parameters:
+              ["--source", "fingrid", "--catalog", "${var.catalog}", "--landing-url", "${var.landing_url}"]
+
+        - task_key: entsoe
+          environment_key: bronze
+          max_retries: 1
+          min_retry_interval_millis: 300000
+          python_wheel_task:
+            package_name: energy_bronze
+            entry_point: load-bronze
+            parameters:
+              ["--source", "entsoe", "--catalog", "${var.catalog}", "--landing-url", "${var.landing_url}"]
+
+        - task_key: fmi
+          environment_key: bronze
+          max_retries: 1
+          min_retry_interval_millis: 300000
+          python_wheel_task:
+            package_name: energy_bronze
+            entry_point: load-bronze
+            parameters:
+              ["--source", "fmi", "--catalog", "${var.catalog}", "--landing-url", "${var.landing_url}"]

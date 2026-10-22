@@ -56,15 +56,21 @@ checked in PRs B and C and the outcome is recorded here.
    `ARM_CLIENT_ID`, `ARM_TENANT_ID` and the workspace `host`. No PAT or client secret. (`github-oidc` is
    a different thing: Databricks' own federation policy, not needed here.)
 5. **Serverless compute for jobs is available in `swedencentral`.** Spark's built-in XML reader needs
-   DBR 14.3+, which current serverless environments exceed. The pinned environment version and the DBU
-   price are recorded in PR C.
+   DBR 14.3+, which current serverless environments exceed. The job pins **serverless environment 6**
+   (Python 3.12, Databricks Connect 19, supported until 2029-09); the wheel requires Python >= 3.12 and
+   ruff targets 3.12 for `databricks/`. Local tests use pyspark 4.1, the closest open-source release.
+   DBU price: recorded with the first week's cost (acceptance criteria).
 6. **Storage roles:** Databricks documents either `Storage Blob Data Contributor` on the account, or
    `Storage Blob Delegator` on the account plus a data role on the container. We scope per container,
    so the access connector also gets **Storage Blob Delegator** on the account (it only allows getting
    a user delegation key; it grants no data access by itself). Whether `Storage Blob Data Reader` is
-   enough for the read-only `landing` location is not documented: checked by the external location
-   validation in PR B.
-7. **XML parsing** of the ENTSO-E and FMI namespaces: checked with the recorded fixtures in PR C's tests.
+   enough for the read-only `landing` location wasn't documented; **confirmed on 2026-10-22**: the
+   external location validated and was created with only Reader on `landing` (PR #15's apply).
+7. **XML parsing:** confirmed with the recorded fixtures (pyspark 4.1.3, Java 17): with an explicit
+   schema, Spark's built-in XML reader matches ENTSO-E's default-namespace elements by their plain
+   names (`rowTag = Publication_MarketDocument`), and FMI's prefixed names as written
+   (`rowTag = wml2:MeasurementTimeseries`, fields `wml2:point`, attribute `_gml:id`). The first job run
+   confirms the same on serverless.
 
 ## Deliverables
 
@@ -124,14 +130,14 @@ databricks/
 ├── databricks.yml              bundle `energy`, target `dev` (workspace host, run_as the CI SP)
 ├── resources/
 │   └── bronze_job.yml          job `bronze_load`
-├── pyproject.toml              uv workspace member `energy-bronze` (pyspark only as a dev dependency)
+├── pyproject.toml              uv workspace member `energy-bronze` (no runtime dependencies; pyspark
+│                               comes from serverless, and from the root's `spark` group in tests)
 ├── src/energy_bronze/
-│   ├── sources.py              one definition per bronze table: landing path, format, reader options,
-│   │                           transform (DataFrame → bronze rows), target table
-│   ├── metadata.py             `_ingested_at` from the file name, `_source_file`
+│   ├── sources.py              one definition per bronze table: landing path, format, explicit schema,
+│   │                           reader options, transform (DataFrame → bronze rows)
+│   ├── metadata.py             `_ingested_at`, `_source_file`, `_loaded_at`; FMI key from the file name
 │   └── load.py                 entry point: `--source fingrid|entsoe|fmi` → Auto Loader stream per table
-└── tests/
-    └── test_*.py               local Spark against the recorded fixtures
+└── tests/                      local Spark against the ingestion's recorded fixtures
 ```
 
 The job `bronze_load`:
@@ -143,9 +149,15 @@ The job `bronze_load`:
 - Schedule: cron **`0 30 * * * ?`, UTC**, i.e. :30 every hour, after the ingestion functions
   (:05/:10/:15). `max_concurrent_runs: 1`.
 - Each stream: `readStream.format("cloudFiles")` with directory listing (no file notifications: a few
-  files per hour don't need Event Grid and queues), `cloudFiles.schemaLocation` and the checkpoint in the
-  `checkpoints` volume, `schemaEvolutionMode = addNewColumns`, `trigger(availableNow=True)`, append to a
+  files per hour don't need Event Grid and queues), an **explicit schema** with `rescuedDataColumn =
+  _rescued_data`, the checkpoint in the `checkpoints` volume, `trigger(availableNow=True)`, append to a
   managed Delta table. A run processes every file that arrived since the last one and stops.
+- Explicit schemas instead of inference with `addNewColumns` (changed during implementation): the
+  formats are known and verified, so a new or renamed source field can't fail the stream (with
+  `addNewColumns` the stream stops once on every new field), and anything unexpected is kept in
+  `_rescued_data` instead of being dropped. No schema location is needed.
+- Within a task, the tables load one after another; one failing table doesn't stop the others, and the
+  task fails at the end. Each task retries once after 5 minutes.
 
 Bronze tables (`energy.bronze`; extends `docs/data-model.md`):
 
@@ -154,12 +166,14 @@ Bronze tables (`energy.bronze`; extends `docs/data-model.md`):
 | `fingrid_wind_production` | `fingrid/wind_production/` | record in `data[]` | `datasetId`, `startTime`, `endTime`, `value` |
 | `fingrid_consumption` | `fingrid/consumption/` | record | same |
 | `fingrid_production` | `fingrid/production/` | record | same |
-| `entsoe_day_ahead_price` | `entsoe/day_ahead_price/` | `Point` | document `mRID` and `revisionNumber`, `period_start`, `period_end`, `resolution`, `position`, `price` |
+| `entsoe_day_ahead_price` | `entsoe/day_ahead_price/` | `Point` | `document_mrid`, `revision_number`, `time_series_mrid`, `period_start`, `period_end`, `resolution`, `position`, `price_amount` |
 | `fmi_observations` | `fmi/observations/` | `MeasurementTVP` | `fmisid` (from the file name key), `parameter` (from the series `gml:id`), `time`, `value` (string, so `NaN` survives) |
 
-Bronze keeps source field names and values; timestamps stay ISO strings and are typed in staging. The
-only "transformation" is exploding nested arrays into rows, because a 20,000-record Fingrid page as a
-single row would be useless to query.
+Bronze keeps source values exactly as sent: every column is a string (timestamps, numbers, `NaN`) and
+staging types them. The only "transformation" is exploding nested arrays into rows, because a
+20,000-record Fingrid page as a single row would be useless to query. Fingrid keeps its JSON field
+names; the flattened XML fields get plain snake_case names (`price.amount` → `price_amount`), since
+dots and namespace prefixes in column names are awkward in SQL.
 
 Metadata columns on every table:
 
@@ -168,6 +182,8 @@ Metadata columns on every table:
   wins"). Backfilled files carry the backfill time, which is correct for the same reason.
 - `_source_file`: `_metadata.file_path`.
 - `_loaded_at`: `current_timestamp()` when the row was appended, for debugging and pipeline health.
+- `_rescued_data`: added by Auto Loader; fields the explicit schema doesn't expect, as JSON (normally
+  null).
 
 Rebuilding a table from landing (documented in `databricks/README.md`): drop the table, delete its
 checkpoint directory in the volume, run the task. Landing is immutable, so this is always safe.
@@ -180,13 +196,15 @@ Tests (no network, no workspace):
   omitted A03 positions stay omitted (no filling in bronze);
 - FMI: `t2m` and `ws_10min` series become rows with the right `parameter`, `NaN` kept as a string.
 
-Spark tests need Java; they run in CI (Ubuntu runners have it). Locally they are skipped with a clear
-message when Java is missing, so `uv run pytest` still works on the owner's Windows machine.
+Spark tests need pyspark (root dependency group `spark`, not installed by default) and Java. CI has
+both; locally they are skipped with a clear message, so `uv run pytest` still works on the owner's
+Windows machine. To run them locally without Java, use a Linux container (see `databricks/README.md`).
 
 ### D. CI/CD (`.github/workflows/databricks.yml`)
 
-- On PRs touching `databricks/**` (or the workflow): `uv sync`, ruff, pytest, then
-  `databricks bundle validate -t dev` (trusted sources only, same gate as `terraform.yml`).
+- On PRs touching `databricks/**`, the root `pyproject.toml`/`uv.lock` or the workflow:
+  `uv sync --group spark` with Java 17, ruff, pytest, then `databricks bundle validate -t dev` (trusted
+  sources only, same gate as `terraform.yml`).
 - On push to `main`: the same, then a deploy job in the `dev` environment: `databricks bundle deploy -t dev`
   with OIDC. The existing `environment:dev` federated credential covers it.
 - The root `pyproject.toml` adds `databricks` as a workspace member and its tests to `testpaths`.
