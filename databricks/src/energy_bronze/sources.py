@@ -35,8 +35,18 @@ class BronzeTable:
 
 # --- Fingrid: JSON page {"data": [{datasetId, startTime, endTime, value}], "pagination": {...}} ---
 
+# Every field the API sends is declared, even the ones bronze drops (pagination), so that
+# `_rescued_data` stays null unless the API really changes.
 FINGRID_SCHEMA = StructType(
-    [StructField("data", ArrayType(_struct("datasetId", "startTime", "endTime", "value")))]
+    [
+        StructField("data", ArrayType(_struct("datasetId", "startTime", "endTime", "value"))),
+        StructField(
+            "pagination",
+            _struct(
+                "total", "lastPage", "nextPage", "prevPage", "currentPage", "perPage", "from", "to"
+            ),
+        ),
+    ]
 )
 
 
@@ -60,16 +70,37 @@ def _fingrid(name: str) -> BronzeTable:
 
 # --- ENTSO-E: Publication_MarketDocument > TimeSeries > Period > Point ---
 
+# An element with an attribute (`<in_Domain.mRID codingScheme="A01">`) reads as a struct of its text
+# (`_VALUE`) and the attribute (`_codingScheme`).
+_CODED = _struct("_VALUE", "_codingScheme")
+
 ENTSOE_SCHEMA = StructType(
     [
+        # All declared so `_rescued_data` stays null; bronze keeps only the document identity.
+        StructField("_xmlns", StringType()),
         StructField("mRID", StringType()),
         StructField("revisionNumber", StringType()),
+        StructField("type", StringType()),
+        StructField("sender_MarketParticipant.mRID", _CODED),
+        StructField("sender_MarketParticipant.marketRole.type", StringType()),
+        StructField("receiver_MarketParticipant.mRID", _CODED),
+        StructField("receiver_MarketParticipant.marketRole.type", StringType()),
+        StructField("createdDateTime", StringType()),
+        StructField("period.timeInterval", _struct("start", "end")),
         StructField(
             "TimeSeries",
             ArrayType(
                 StructType(
                     [
                         StructField("mRID", StringType()),
+                        StructField("auction.type", StringType()),
+                        StructField("businessType", StringType()),
+                        StructField("in_Domain.mRID", _CODED),
+                        StructField("out_Domain.mRID", _CODED),
+                        StructField("contract_MarketAgreement.type", StringType()),
+                        StructField("currency_Unit.name", StringType()),
+                        StructField("price_Measure_Unit.name", StringType()),
+                        StructField("curveType", StringType()),
                         StructField(
                             "Period",
                             ArrayType(
@@ -91,9 +122,23 @@ ENTSOE_SCHEMA = StructType(
     ]
 )
 
+_ENTSOE_SERIES_COLUMNS = [
+    "document_mrid",
+    "revision_number",
+    "time_series_mrid",
+    "in_domain",
+    "currency_unit",
+    "price_measure_unit",
+    "curve_type",
+]
+
 
 def flatten_entsoe(df: DataFrame) -> DataFrame:
-    """One row per `Point`. Positions omitted by curve type A03 stay omitted; staging fills them."""
+    """One row per `Point`. Positions omitted by curve type A03 stay omitted; staging fills them.
+
+    Bidding zone, currency, unit and curve type are kept so staging can check them (FI, EUR, MWH,
+    A03) instead of assuming them.
+    """
     keep = passthrough(df)
     series = df.select(
         F.col("mRID").alias("document_mrid"),
@@ -105,13 +150,15 @@ def flatten_entsoe(df: DataFrame) -> DataFrame:
         "document_mrid",
         "revision_number",
         F.col("ts.mRID").alias("time_series_mrid"),
+        F.col("ts.`in_Domain.mRID`._VALUE").alias("in_domain"),
+        F.col("ts.`currency_Unit.name`").alias("currency_unit"),
+        F.col("ts.`price_Measure_Unit.name`").alias("price_measure_unit"),
+        F.col("ts.curveType").alias("curve_type"),
         F.explode("ts.Period").alias("p"),
         *keep,
     )
     points = periods.select(
-        "document_mrid",
-        "revision_number",
-        "time_series_mrid",
+        *_ENTSOE_SERIES_COLUMNS,
         F.col("p.timeInterval.start").alias("period_start"),
         F.col("p.timeInterval.end").alias("period_end"),
         F.col("p.resolution").alias("resolution"),
@@ -119,9 +166,7 @@ def flatten_entsoe(df: DataFrame) -> DataFrame:
         *keep,
     )
     return points.select(
-        "document_mrid",
-        "revision_number",
-        "time_series_mrid",
+        *_ENTSOE_SERIES_COLUMNS,
         "period_start",
         "period_end",
         "resolution",

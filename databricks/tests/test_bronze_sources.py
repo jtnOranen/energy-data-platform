@@ -70,6 +70,10 @@ def test_entsoe_hourly_document(spark, landing):
         "document_mrid",
         "revision_number",
         "time_series_mrid",
+        "in_domain",
+        "currency_unit",
+        "price_measure_unit",
+        "curve_type",
         "period_start",
         "period_end",
         "resolution",
@@ -85,6 +89,12 @@ def test_entsoe_hourly_document(spark, landing):
     assert first.revision_number == "1"
     assert (first.period_start, first.period_end) == ("2025-09-28T22:00Z", "2025-09-29T22:00Z")
     assert first.price_amount == "2.34"
+    assert first.in_domain == "10YFI-1--------U"
+    assert (first.currency_unit, first.price_measure_unit, first.curve_type) == (
+        "EUR",
+        "MWH",
+        "A03",
+    )
 
 
 def test_entsoe_quarter_hour_document(spark, landing):
@@ -94,6 +104,46 @@ def test_entsoe_quarter_hour_document(spark, landing):
 
     assert df.count() == _points("entsoe_fi_20251002_pt15m.xml")
     assert {r.resolution for r in df.select("resolution").distinct().collect()} == {"PT15M"}
+
+
+def _undeclared(inferred, declared, prefix=""):
+    """Fields Spark infers from a file that the explicit schema doesn't declare.
+
+    Auto Loader would put those in `_rescued_data` on every row; open-source Spark has no rescued
+    data column, so the test compares schemas instead.
+    """
+    from pyspark.sql.types import ArrayType, StructType
+
+    declared_types = {f.name: f.dataType for f in declared.fields}
+    missing = []
+    for f in inferred.fields:
+        name = f"{prefix}{f.name}"
+        if f.name not in declared_types:
+            missing.append(name)
+            continue
+        got, want = f.dataType, declared_types[f.name]
+        if isinstance(got, ArrayType) and isinstance(want, ArrayType):
+            got, want = got.elementType, want.elementType
+        if isinstance(got, StructType) and isinstance(want, StructType):
+            missing += _undeclared(got, want, f"{name}.")
+    return missing
+
+
+def test_schemas_declare_every_field_the_sources_send(spark, landing):
+    """On the first run every Fingrid and ENTSO-E row carried undeclared fields in _rescued_data."""
+    files = {
+        "fingrid_wind_production": [landing("fingrid_75_page1.json", part=1)],
+        "entsoe_day_ahead_price": [
+            landing("entsoe_fi_20250929_pt60m.xml", part=2),
+            landing("entsoe_fi_20251002_pt15m.xml", part=3),
+        ],
+        "fmi_observations": [landing("fmi_100968_1h.xml", part=4, key="100968")],
+    }
+    for name, paths in files.items():
+        t = table(name)
+        for path in paths:
+            inferred = spark.read.format(t.file_format).options(**t.options).load(str(path))
+            assert _undeclared(inferred.schema, t.schema) == [], f"{name}: {path.name}"
 
 
 def test_fmi_one_row_per_time_value_pair(spark, landing):
