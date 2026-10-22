@@ -2,7 +2,7 @@
 
 Databricks Asset Bundle for the bronze load (phase 2): the job `bronze_load` reads new files from the
 ADLS `landing` container with Auto Loader and appends them to the `energy.bronze` tables. Serverless
-jobs compute (ADR 0011), hourly at :30 UTC, one task per source. The tables and their columns are
+jobs compute (ADR 0011), every 6 hours at :30 UTC, one task per source. The tables and their columns are
 described in `docs/data-model.md` and the phase 2 spec.
 
 ```

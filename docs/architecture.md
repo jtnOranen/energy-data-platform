@@ -47,7 +47,7 @@ Terraform creates every Azure and Databricks resource. GitHub Actions tests ever
 | Azure Function (`ingestion/`) | Fetch the three APIs and write raw responses to ADLS | Timer trigger hourly; idempotent; overlap window to catch late data |
 | ADLS Gen2 `landing` container | Immutable raw files | Path: `landing/<source>/<dataset>/yyyy=YYYY/mm=MM/dd=DD/<ingested_at>_<window_start>_<window_end>[_<key>]_p<part>.<json\|xml>`; date = ingestion date (UTC), `key` = e.g. FMI station |
 | Key Vault | Fingrid API key, ENTSO-E token | Function reads via managed identity (RBAC) |
-| Databricks Auto Loader job | Raw files → bronze Delta tables | Serverless, hourly `availableNow` run; explicit schemas with `_rescued_data`; adds `_ingested_at`, `_source_file`, `_loaded_at` |
+| Databricks Auto Loader job | Raw files → bronze Delta tables | Serverless, `availableNow` run every 6 hours; explicit schemas with `_rescued_data`; adds `_ingested_at`, `_source_file`, `_loaded_at` |
 | dbt (`dbt/`) | bronze → silver → gold | dbt-databricks adapter, serverless SQL warehouse |
 | Databricks Workflows | Orchestration: Auto Loader task, then dbt task | Defined in a Databricks Asset Bundle |
 | AI/BI dashboard | Report on gold | Defined in the bundle, screenshots in README |
@@ -69,7 +69,7 @@ workspace, dropped when the PR closes. Production-like separation is shown throu
 ## Cost controls
 
 Budget alert in Terraform, serverless jobs compute for the bronze load (ADR 0011), smallest serverless SQL warehouse with
-auto-stop, hourly (not continuous) schedules, resource tags `project` and `env` on everything. Actual monthly cost is
+auto-stop, scheduled (not continuous) runs (ingestion hourly, bronze every 6 hours), resource tags `project` and `env` on everything. Actual monthly cost is
 recorded in the README.
 
 ## Decisions

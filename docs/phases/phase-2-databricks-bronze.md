@@ -3,7 +3,7 @@
 ## Goal
 
 A Databricks workspace with Unity Catalog reads the raw files in `landing` with Auto Loader and appends
-them to bronze Delta tables in `energy.bronze`, once an hour, as a job defined in a Databricks Asset
+them to bronze Delta tables in `energy.bronze`, every 6 hours, as a job defined in a Databricks Asset
 Bundle and deployed from CI. No cleaning, typing beyond parsing, or deduplication: that is dbt's job in
 phase 3.
 
@@ -146,7 +146,7 @@ The job `bronze_load`:
   for the same reason as one function per source in phase 1. The Fingrid task loads its three tables.
 - **Serverless jobs compute**, standard performance mode, a pinned serverless environment with the
   `energy-bronze` wheel. See ADR 0011.
-- Schedule: cron **`0 30 * * * ?`, UTC**, i.e. :30 every hour, after the ingestion functions
+- Schedule: cron **`0 30 */6 * * ?`, UTC**, i.e. 00:30, 06:30, 12:30 and 18:30, after the ingestion functions
   (:05/:10/:15). `max_concurrent_runs: 1`.
 - Each stream: `readStream.format("cloudFiles")` with directory listing (no file notifications: a few
   files per hour don't need Event Grid and queues), an **explicit schema** with `rescuedDataColumn =
@@ -229,8 +229,12 @@ ideally before A.
 
 1. **Serverless jobs compute** instead of a classic single-node job cluster. See ADR 0011.
 2. **Deploy the bundle from CI in this phase**, same pattern as the function in phase 1.
-3. **Hourly cron at :30 UTC** instead of a file-arrival trigger: predictable, one run per hour instead of
-   one per source file batch, and matches "hourly, not continuous" in architecture.md.
+3. **Cron at :30 UTC** instead of a file-arrival trigger: predictable, and one run per schedule instead
+   of one per source file batch. **Every 6 hours, not hourly** (owner, 2026-10-22, before the first
+   deploy): about a sixth of the serverless cost, and no data is lost, because Auto Loader loads every
+   file that arrived since the last run and ingestion still runs hourly. The trade-off is that bronze
+   lags landing by up to about 6 hours, which the historical analysis doesn't mind; phase 3's source
+   freshness thresholds must allow for it. Easy to tighten later (one cron line).
 4. **The workspace is created by `bootstrap.sh`**, not Terraform, so the CI service principal keeps no
    subscription-level rights. See ADR 0012.
 
@@ -246,7 +250,7 @@ ideally before A.
 - [ ] Two consecutive scheduled runs succeed; the second appends only rows from new files (checkpoint
       works, nothing is reloaded).
 - [ ] Both ENTSO-E grains are in bronze: `resolution` has `PT60M` before 2025-10-01 and `PT15M` after.
-- [ ] Cost after a week of hourly runs is recorded (Azure cost analysis for the workspace), and it is
+- [ ] Cost after a week of scheduled runs is recorded (Azure cost analysis for the workspace), and it is
       within the budget.
 
 ## Interview notes to capture (in README or ADRs)
