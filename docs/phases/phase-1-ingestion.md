@@ -154,15 +154,25 @@ This pulls part of phase 4 ("CI/CD for all parts") forward, by the owner's decis
 
 ## Acceptance criteria
 
-- [ ] All VERIFY items in `docs/data-sources.md` are resolved.
-- [ ] `terraform plan` after apply shows no changes (the apply job checks this automatically).
+Checked 2026-10-20 (PRs #2–#9). One item is open, see below.
+
+- [x] All VERIFY items in `docs/data-sources.md` are resolved.
+- [x] `terraform plan` after apply shows no changes (the apply job checks this automatically).
 - [ ] No secret values in the repo, in Terraform state, or in app settings (only Key Vault references).
-- [ ] `uv run pytest` and ruff pass locally and in CI; no test touches the network.
-- [ ] Each timer function has run in Azure and written a file per dataset to landing; App Insights shows
-      the per-call log lines.
-- [ ] Backfill has loaded 2024-01-01 → today for every dataset, so both the 60- and the 15-minute
-      ENTSO-E price grains (before and after 2025-10-01) are in landing.
-- [ ] Two consecutive hourly runs both succeed; the second writes new files (overlapping data is expected).
+      Repo and app settings: yes (gitleaks clean; the API keys are Key Vault references; the App Insights
+      connection string can't ingest anything with local auth disabled). **Terraform state: no.**
+      `azurerm_storage_account` always stores both storage accounts' access keys in state, even though
+      nothing uses them. Follow-up: disable shared key access on both accounts, so the keys can't be
+      used even if read.
+- [x] `uv run pytest` and ruff pass locally and in CI; no test touches the network (38 tests; httpx
+      without an explicit transport fails in tests).
+- [x] Each timer function has run in Azure and written a file per dataset to landing; App Insights shows
+      the per-call log lines (first runs 14:05/14:10/14:15 UTC; 0 exceptions; no `securityToken` in logs).
+- [x] Backfill has loaded 2024-01-01 → today for every dataset, so both the 60- and the 15-minute
+      ENTSO-E price grains (before and after 2025-10-01) are in landing. FMI is complete (147,415 points
+      per station); Fingrid is missing only its known gaps (about 350 quarter-hours per dataset).
+- [x] Two consecutive hourly runs both succeed; the second writes new files (overlapping data is
+      expected). Four consecutive successful runs per function, 14:05–17:15 UTC.
 
 ## Interview notes to capture (in README or ADRs)
 

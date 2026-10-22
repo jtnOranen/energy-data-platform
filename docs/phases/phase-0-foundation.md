@@ -82,12 +82,15 @@ infra/
 
 ## Acceptance criteria
 
-- [ ] `bootstrap.sh` runs twice without errors; the second run changes nothing.
-- [ ] A PR touching `infra/` shows `fmt`, `validate` and `plan` green and a plan comment.
-- [ ] Merging that PR runs `apply` and creates `rg-energy-dev`, the ADLS account with `landing`, the Key Vault and the budget.
-- [ ] No secret values exist anywhere in the repo or in GitHub secrets.
-- [ ] `terraform plan` after apply shows no changes.
-- [ ] README explains bootstrap in under 10 lines.
+Done 2026-10-20 (PR #1).
+
+- [x] `bootstrap.sh` runs twice without errors; the second run changes nothing.
+- [x] A PR touching `infra/` shows `fmt`, `validate` and `plan` green and a plan comment.
+- [x] Merging that PR runs `apply` and creates the ADLS account with `landing`, the Key Vault and the budget.
+      (`rg-energy-dev` itself is created by `bootstrap.sh` instead, see ADR 0007.)
+- [x] No secret values exist anywhere in the repo or in GitHub secrets (gitleaks clean; no GitHub secrets used).
+- [x] `terraform plan` after apply shows no changes (checked automatically by the apply job).
+- [x] README explains bootstrap in under 10 lines.
 
 ## Interview notes to capture (in README or ADRs)
 
