@@ -27,3 +27,13 @@ output "databricks_access_connector_id" {
   description = "Resource ID of the Databricks access connector."
   value       = module.databricks.access_connector_id
 }
+
+output "databricks_catalog_name" {
+  description = "Name of the Unity Catalog catalog."
+  value       = module.unity_catalog.catalog_name
+}
+
+output "databricks_checkpoints_volume_path" {
+  description = "Volume path for Auto Loader checkpoints."
+  value       = module.unity_catalog.checkpoints_volume_path
+}

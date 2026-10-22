@@ -214,6 +214,49 @@ assign_role_if_missing "Contributor" "$DEV_RG_SCOPE"
 assign_role_if_missing "Role Based Access Control Administrator" "$DEV_RG_SCOPE"
 assign_role_if_missing "Storage Blob Data Contributor" "$STORAGE_SCOPE"
 
+echo "==> Service principal as Databricks workspace admin"
+
+# A Contributor on the workspace resource is normally made a workspace admin on first use, but for a
+# service principal that only happens when the client also sends an Azure management token, which the
+# GitHub OIDC auth used in CI (github-oidc-azure) doesn't. So add it once here, as the owner, through
+# the workspace SCIM API. Terraform's databricks provider and the bundle deploy both need it.
+DATABRICKS_RESOURCE="2ff814a6-3304-4ab8-85cb-cd0e6f879c1d" # the Azure Databricks first-party app
+DATABRICKS_HOST="https://$(az databricks workspace show --name "$DATABRICKS_WORKSPACE" \
+  --resource-group "$DEV_RESOURCE_GROUP" --query workspaceUrl -o tsv)"
+SCIM="$DATABRICKS_HOST/api/2.0/preview/scim/v2"
+
+dbx_rest () {
+  az rest --resource "$DATABRICKS_RESOURCE" "$@"
+}
+
+ADMINS_GROUP_ID=$(dbx_rest --method get --url "$SCIM/Groups?filter=displayName%20eq%20admins" \
+  --query "Resources[0].id" -o tsv)
+DBX_SP_ID=$(dbx_rest --method get \
+  --url "$SCIM/ServicePrincipals?filter=applicationId%20eq%20$APP_ID" \
+  --query "Resources[0].id" -o tsv)
+if [[ -z "$DBX_SP_ID" ]]; then
+  DBX_SP_ID=$(dbx_rest --method post --url "$SCIM/ServicePrincipals" --body "$(cat <<JSON
+{
+  "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ServicePrincipal"],
+  "applicationId": "$APP_ID",
+  "displayName": "$SP_NAME"
+}
+JSON
+)" --query id -o tsv)
+  echo "    added $SP_NAME to the workspace"
+else
+  echo "    $SP_NAME already in the workspace"
+fi
+# Adding an existing member again is a no-op.
+dbx_rest --method patch --url "$SCIM/Groups/$ADMINS_GROUP_ID" --body "$(cat <<JSON
+{
+  "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+  "Operations": [{"op": "add", "value": {"members": [{"value": "$DBX_SP_ID"}]}}]
+}
+JSON
+)" -o none
+echo "    $SP_NAME is in the workspace admins group"
+
 echo "==> GitHub repo variables (not secrets) on ${GITHUB_OWNER}/${REPO}"
 gh variable set AZURE_CLIENT_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$APP_ID"
 gh variable set AZURE_TENANT_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$TENANT_ID"
