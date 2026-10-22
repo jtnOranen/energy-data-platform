@@ -40,9 +40,10 @@ PR that needs them, and the outcome is recorded here.
    the bundle sync `../dbt` (`sync.paths`) so the task finds the project as workspace files, keeping
    `dbt/` at the repo root as `CLAUDE.md` lays it out? If not, the fallback is a `git_source` task.
 4. **Warehouse cost:** a serverless SQL warehouse at 2X-Small uses **4 DBU/hour** (Microsoft Learn
-   pricing page). Confirm the Azure Premium price per serverless SQL DBU in `swedencentral` (the AWS list
-   price is $0.70, about $2.80/hour) and the minimum `auto_stop_mins` the API accepts for serverless
-   (the UI's minimum is higher), and that a daily run stays within the budget.
+   pricing page). **Auto-stop: confirmed 2026-10-22** (Microsoft Learn, "Create a SQL warehouse"): the
+   UI's minimum for serverless is 5 minutes, the API accepts **1 minute**, so the warehouse uses 1.
+   Still open: the Azure Premium price per serverless SQL DBU in `swedencentral` (the AWS list price
+   is $0.70, about $2.80/hour), recorded with the first week's cost.
 5. **Auth:** CI gets an Entra ID token for the Azure Databricks resource after `azure/login` with OIDC
    (`az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`) and passes it to dbt
    as `token`, so no PAT or secret. Locally the owner uses dbt-databricks' `auth_type: oauth`
