@@ -40,7 +40,10 @@ The owner is building this **to learn and to show skills to employers**. That ch
    - Python: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`
    - dbt: `dbt build --select <changed models>+`
 4. **Never run `terraform apply` or `terraform destroy` locally.** Infrastructure changes go through a pull request
-   and GitHub Actions. `terraform plan` locally is fine.
+   and GitHub Actions. `terraform plan` locally is fine, but a full local plan can't refresh the
+   Unity Catalog objects (the CI service principal owns them; the owner has no rights on the storage
+   credential, on purpose). Locally, plan with `-target=module.<name>` for non-Databricks modules;
+   the PR's CI plan is the full check.
 5. **No secrets in the repo, ever.** API keys live in Azure Key Vault and GitHub uses OIDC. If you see a secret
    in a file or diff, stop and tell the owner.
 6. **Update docs in the same PR** when behaviour, structure or a decision changes.
