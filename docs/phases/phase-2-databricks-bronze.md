@@ -156,6 +156,10 @@ The job `bronze_load`:
   formats are known and verified, so a new or renamed source field can't fail the stream (with
   `addNewColumns` the stream stops once on every new field), and anything unexpected is kept in
   `_rescued_data` instead of being dropped. No schema location is needed.
+- The schemas declare **every** field the sources send, including ones bronze drops (Fingrid
+  `pagination`, ENTSO-E header fields). The first run declared only the kept fields, so every Fingrid
+  and ENTSO-E row carried the rest in `_rescued_data` (for a year-long ENTSO-E document, hundreds of
+  kilobytes per row). A test now checks each fixture's inferred schema against the declared one.
 - Within a task, the tables load one after another; one failing table doesn't stop the others, and the
   task fails at the end. Each task retries once after 5 minutes.
 
@@ -166,7 +170,7 @@ Bronze tables (`energy.bronze`; extends `docs/data-model.md`):
 | `fingrid_wind_production` | `fingrid/wind_production/` | record in `data[]` | `datasetId`, `startTime`, `endTime`, `value` |
 | `fingrid_consumption` | `fingrid/consumption/` | record | same |
 | `fingrid_production` | `fingrid/production/` | record | same |
-| `entsoe_day_ahead_price` | `entsoe/day_ahead_price/` | `Point` | `document_mrid`, `revision_number`, `time_series_mrid`, `period_start`, `period_end`, `resolution`, `position`, `price_amount` |
+| `entsoe_day_ahead_price` | `entsoe/day_ahead_price/` | `Point` | `document_mrid`, `revision_number`, `time_series_mrid`, `in_domain`, `currency_unit`, `price_measure_unit`, `curve_type`, `period_start`, `period_end`, `resolution`, `position`, `price_amount` |
 | `fmi_observations` | `fmi/observations/` | `MeasurementTVP` | `fmisid` (from the file name key), `parameter` (from the series `gml:id`), `time`, `value` (string, so `NaN` survives) |
 
 Bronze keeps source values exactly as sent: every column is a string (timestamps, numbers, `NaN`) and
@@ -185,8 +189,10 @@ Metadata columns on every table:
 - `_rescued_data`: added by Auto Loader; fields the explicit schema doesn't expect, as JSON (normally
   null).
 
-Rebuilding a table from landing (documented in `databricks/README.md`): drop the table, delete its
-checkpoint directory in the volume, run the task. Landing is immutable, so this is always safe.
+Rebuilding from landing: the manual job `bronze_rebuild` (parameter `source`) drops that source's
+tables and checkpoints and reloads every file, running as the CI SP that owns the tables
+(`databricks/README.md`). Landing is immutable, so this is always safe. Each load logs
+`table=… rows=…` from the Delta history, which shows whether a run appended only new files.
 
 Tests (no network, no workspace):
 

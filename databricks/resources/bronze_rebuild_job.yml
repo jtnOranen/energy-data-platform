@@ -1,0 +1,40 @@
+resources:
+  jobs:
+    # Manual only (no schedule). Runs as the CI service principal, which owns the bronze tables, so
+    # the owner can rebuild without being granted DROP on them. Run it between the bronze_load runs:
+    #   databricks bundle run -t dev bronze_rebuild --params source=fingrid
+    bronze_rebuild:
+      name: bronze_rebuild
+      description: >
+        Drops one source's bronze tables and Auto Loader checkpoints, then reloads all of landing.
+        Use after a schema change. Parameter `source`: fingrid, entsoe or fmi.
+
+      parameters:
+        - name: source
+          default: ""
+      max_concurrent_runs: 1
+
+      performance_target: STANDARD
+      environments:
+        - environment_key: bronze
+          spec:
+            environment_version: "6"
+            dependencies:
+              - ../dist/*.whl
+
+      tasks:
+        - task_key: rebuild
+          environment_key: bronze
+          python_wheel_task:
+            package_name: energy_bronze
+            entry_point: load-bronze
+            parameters:
+              [
+                "--source",
+                "{{job.parameters.source}}",
+                "--rebuild",
+                "--catalog",
+                "${var.catalog}",
+                "--landing-url",
+                "${var.landing_url}",
+              ]

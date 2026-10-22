@@ -12,7 +12,7 @@ One table per source dataset, raw structure plus metadata.
 | `bronze.fingrid_wind_production` | raw Fingrid records (dataset 75, 15 min) |
 | `bronze.fingrid_consumption` | raw Fingrid records (dataset 124, 15 min) |
 | `bronze.fingrid_production` | raw Fingrid records (dataset 74, 15 min) |
-| `bronze.entsoe_day_ahead_price` | one row per XML `Point`: `document_mrid`, `revision_number`, `time_series_mrid`, `period_start`, `period_end`, `resolution`, `position`, `price_amount` |
+| `bronze.entsoe_day_ahead_price` | one row per XML `Point`: `document_mrid`, `revision_number`, `time_series_mrid`, `in_domain`, `currency_unit`, `price_measure_unit`, `curve_type`, `period_start`, `period_end`, `resolution`, `position`, `price_amount` |
 | `bronze.fmi_observations` | one row per time-value pair: `fmisid`, `parameter`, `time`, `value` |
 
 All bronze columns are strings, exactly as the source sent them; staging types them. Every bronze table

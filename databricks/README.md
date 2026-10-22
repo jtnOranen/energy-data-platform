@@ -8,6 +8,7 @@ described in `docs/data-model.md` and the phase 2 spec.
 ```
 databricks.yml            bundle `energy`, target `dev` (host, root path, run_as the CI service principal)
 resources/bronze_job.yml  the job: schedule, serverless environment, one wheel task per source
+resources/bronze_rebuild_job.yml  manual job: drop a source's tables and checkpoints, reload all
 src/energy_bronze/        sources.py (table definitions), metadata.py, load.py (entry point)
 tests/                    local Spark against the ingestion's recorded fixtures
 ```
@@ -33,18 +34,18 @@ DATABRICKS_AUTH_TYPE=azure-cli databricks bundle run -t dev bronze_load
 
 Or "Run now" on the job in the workspace UI. The first run loads the whole backfill.
 
-## Rebuild a table from landing
+## Rebuild a source's tables from landing
 
-Landing is immutable, so a bronze table can always be rebuilt. For example, for `fmi_observations`
-(in a SQL editor or notebook, as a principal that may drop the table, i.e. the CI service principal
-or an admin):
+Landing is immutable, so bronze can always be rebuilt, e.g. after a schema change. The manual job
+`bronze_rebuild` drops one source's tables and checkpoints and reloads every landing file. It runs as
+the CI service principal, which owns the tables. Start it between `bronze_load` runs (they run at
+:30 every 6 hours and take about 10 minutes):
 
-```sql
-DROP TABLE energy.bronze.fmi_observations;
+```bash
+DATABRICKS_AUTH_TYPE=azure-cli databricks bundle run -t dev bronze_rebuild --params source=fingrid
 ```
 
-then delete the checkpoint directory `/Volumes/energy/bronze/checkpoints/fmi_observations` (Catalog
-Explorer → volume → delete folder) and run the `fmi` task. The next run reads every file again.
+The task log has one `table=… rows=…` line per table, as in the scheduled job.
 
 ## Tests
 
