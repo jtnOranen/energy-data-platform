@@ -1,0 +1,318 @@
+models:
+  - name: fct_power_15min
+    description: >
+      Price and power per 15-minute interval, from a time spine: every quarter-hour since
+      2024-01-01 00:00 UTC is a row, and a source gap is a null measure, so every complete UTC day
+      has 96 rows (ADR 0005). Incremental merge on interval_start_utc, rebuilding the last
+      lookback_days on each run.
+    config:
+      contract: {enforced: true}
+    # Unity Catalog records primary and foreign keys but doesn't enforce them (BI tools and the
+    # optimizer use them); the unique and relationships tests below do the enforcing.
+    constraints:
+      - type: primary_key
+        name: pk_fct_power_15min
+        warn_unenforced: false
+        columns: [interval_start_utc]
+      - type: foreign_key
+        name: fk_fct_power_15min__date_key
+        warn_unenforced: false
+        columns: [date_key]
+        to: ref('dim_date')
+        to_columns: [date_key]
+      - type: foreign_key
+        name: fk_fct_power_15min__time_key
+        warn_unenforced: false
+        columns: [time_key]
+        to: ref('dim_time_15min')
+        to_columns: [time_key]
+    columns:
+      - name: interval_start_utc
+        description: Start of the 15-minute interval, UTC. The fact's key.
+        data_type: timestamp
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+      - name: date_key
+        description: Local Finnish date of the interval start (yyyymmdd), key to dim_date.
+        data_type: int
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: time_key
+        description: >
+          Local time of day of the interval start (hhmm), key to dim_time_15min. On the autumn DST
+          day two intervals share a time_key.
+        data_type: int
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_time_15min')
+                field: time_key
+      - name: price_eur_mwh
+        description: Day-ahead price for bidding zone FI, EUR/MWh. Negative prices are valid.
+        data_type: decimal(10,2)
+      - name: price_resolution_minutes
+        description: >
+          Grain the price was published at: 60 (expanded to four equal quarter-hours) before delivery
+          day 2025-10-01, 15 after. Filter on it when comparing intra-hour variation.
+        data_type: int
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [60, 15]
+                quote: false
+      - name: wind_production_mw
+        description: Wind power generation in Finland, average MW (Fingrid 75); null in a Fingrid gap.
+        data_type: double
+      - name: consumption_mw
+        description: Electricity consumption in Finland, average MW (Fingrid 124); null in a gap.
+        data_type: double
+      - name: production_mw
+        description: Electricity production in Finland, average MW (Fingrid 74); null in a gap.
+        data_type: double
+
+  - name: fct_weather_15min
+    description: >
+      Temperature and wind speed per weather station and 15-minute interval. Separate from
+      fct_power_15min so adding a station doesn't change the power fact. Incremental merge,
+      rebuilding the last lookback_days.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        name: pk_fct_weather_15min
+        warn_unenforced: false
+        columns: [interval_start_utc, weather_station_key]
+      - type: foreign_key
+        name: fk_fct_weather_15min__weather_station_key
+        warn_unenforced: false
+        columns: [weather_station_key]
+        to: ref('dim_weather_station')
+        to_columns: [weather_station_key]
+      - type: foreign_key
+        name: fk_fct_weather_15min__date_key
+        warn_unenforced: false
+        columns: [date_key]
+        to: ref('dim_date')
+        to_columns: [date_key]
+      - type: foreign_key
+        name: fk_fct_weather_15min__time_key
+        warn_unenforced: false
+        columns: [time_key]
+        to: ref('dim_time_15min')
+        to_columns: [time_key]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [interval_start_utc, weather_station_key]
+    columns:
+      - name: interval_start_utc
+        description: Start of the 15-minute interval, UTC.
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      - name: weather_station_key
+        description: Key to the dim_weather_station version valid at the interval.
+        data_type: string
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_weather_station')
+                field: weather_station_key
+      - name: date_key
+        description: Local Finnish date of the interval start (yyyymmdd), key to dim_date.
+        data_type: int
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+      - name: time_key
+        description: Local time of day of the interval start (hhmm), key to dim_time_15min.
+        data_type: int
+        constraints:
+          - type: not_null
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_time_15min')
+                field: time_key
+      - name: temperature_c
+        description: Average air temperature, °C.
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: -50
+                max_value: 40
+              config:
+                severity: warn
+      - name: wind_speed_ms
+        description: Average of the 10-minute mean wind speeds, m/s.
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 60
+              config:
+                severity: warn
+      - name: observation_count
+        description: Number of 10-minute observation times in the interval (2 or 1).
+        data_type: bigint
+
+  - name: dim_date
+    description: >
+      One row per local Finnish date, 2024-01-01 to 2030-12-31 (vars dim_date_start/dim_date_end).
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        name: pk_dim_date
+        warn_unenforced: false
+        columns: [date_key]
+    columns:
+      - name: date_key
+        description: Date as yyyymmdd.
+        data_type: int
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+      - name: date_day
+        description: The local date.
+        data_type: date
+        constraints:
+          - type: not_null
+      - name: year_number
+        description: Calendar year.
+        data_type: int
+      - name: quarter_number
+        description: Calendar quarter, 1–4.
+        data_type: int
+      - name: month_number
+        description: Month, 1–12.
+        data_type: int
+      - name: month_name
+        description: Month name in English.
+        data_type: string
+      - name: iso_week_number
+        description: ISO 8601 week number.
+        data_type: int
+      - name: iso_day_of_week
+        description: ISO day of week, 1 = Monday … 7 = Sunday.
+        data_type: int
+      - name: day_name
+        description: Day name in English.
+        data_type: string
+      - name: is_weekend
+        description: Saturday or Sunday.
+        data_type: boolean
+      - name: intervals_in_day
+        description: Quarter-hours in the local day, 92 on the spring DST day, 100 on the autumn one, else 96.
+        data_type: int
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [92, 96, 100]
+                quote: false
+
+  - name: dim_time_15min
+    description: The 96 quarter-hours of a local day.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        name: pk_dim_time_15min
+        warn_unenforced: false
+        columns: [time_key]
+    columns:
+      - name: time_key
+        description: Local time of day as hhmm (0, 15, …, 2345).
+        data_type: int
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+      - name: hour_of_day
+        description: Hour, 0–23.
+        data_type: int
+      - name: minute_of_hour
+        description: Minute the quarter-hour starts at, 0/15/30/45.
+        data_type: int
+      - name: quarter_of_hour
+        description: Quarter of the hour, 1–4.
+        data_type: int
+      - name: time_label
+        description: Start time as HH:MM.
+        data_type: string
+
+  - name: dim_weather_station
+    description: >
+      Weather stations as SCD2, from weather_station_snapshot over the weather_stations seed. The
+      first version of each station is valid from 1900-01-01 and the current one until 9999-12-31,
+      so every observation since 2024 finds exactly one version.
+    config:
+      contract: {enforced: true}
+    constraints:
+      - type: primary_key
+        name: pk_dim_weather_station
+        warn_unenforced: false
+        columns: [weather_station_key]
+    columns:
+      - name: weather_station_key
+        description: Surrogate key of the station version (fmisid + valid-from of the snapshot).
+        data_type: string
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique
+      - name: fmisid
+        description: FMI station ID (the natural key).
+        data_type: int
+        constraints:
+          - type: not_null
+        data_tests:
+          - unique:
+              config:
+                where: is_current
+                # One current version per station.
+      - name: station_name
+        description: Station name as FMI publishes it.
+        data_type: string
+      - name: latitude
+        description: Latitude, WGS84 degrees.
+        data_type: double
+      - name: longitude
+        description: Longitude, WGS84 degrees.
+        data_type: double
+      - name: station_role
+        description: population_centre or wind_cluster.
+        data_type: string
+      - name: valid_from
+        description: Start of the version's validity, UTC.
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      - name: valid_to
+        description: End of the version's validity (exclusive), UTC; 9999-12-31 for the current version.
+        data_type: timestamp
+        constraints:
+          - type: not_null
+      - name: is_current
+        description: True for the station's current version.
+        data_type: boolean
+        constraints:
+          - type: not_null

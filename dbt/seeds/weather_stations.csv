@@ -1,0 +1,5 @@
+fmisid,station_name,latitude,longitude,station_role
+100968,Vantaa Helsinki-Vantaan lentoasema,60.329368,24.972740,population_centre
+101786,Oulu lentoasema,64.935034,25.339195,population_centre
+101462,Vaasa lentoasema,63.058578,21.754597,wind_cluster
+101044,Pori lentoasema,61.460112,21.808395,wind_cluster

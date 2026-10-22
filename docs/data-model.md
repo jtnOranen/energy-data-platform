@@ -34,15 +34,20 @@ Duplicates are expected (overlapping fetch windows).
 
 | Model | Type | Grain / key |
 | --- | --- | --- |
-| `fct_power_15min` | fact, incremental (merge) | `interval_start_utc` (+ `weather_station_key` for weather measures if kept here, or a separate fact) |
+| `fct_power_15min` | fact, incremental (merge), built from a 15-min time spine | `interval_start_utc` |
 | `fct_weather_15min` | fact, incremental (merge) | `interval_start_utc`, `weather_station_key` |
-| `dim_date` | dimension | `date_key` (local Finnish date, for reporting) |
-| `dim_time_15min` | dimension | 96 rows, `time_key` |
-| `dim_weather_station` | SCD2 from `snapshots/weather_station_snapshot` | `weather_station_key`, `valid_from`, `valid_to` |
+| `dim_date` | dimension, 2024-01-01 to 2030-12-31 | `date_key` (yyyymmdd, local Finnish date, for reporting) |
+| `dim_time_15min` | dimension | 96 rows, `time_key` (local hhmm) |
+| `dim_weather_station` | SCD2 from `snapshots/weather_station_snapshot` over the `weather_stations` seed | `weather_station_key`, `valid_from`, `valid_to`, `is_current` |
 
-Measures in `fct_power_15min`: `price_eur_mwh`, `price_resolution_minutes`, `wind_production_mw`, `consumption_mw`.
+Measures in `fct_power_15min`: `price_eur_mwh`, `price_resolution_minutes`, `wind_production_mw`, `consumption_mw`,
+`production_mw`. In `fct_weather_15min`: `temperature_c`, `wind_speed_ms`, `observation_count`. Both facts carry
+`date_key` and `time_key` from the interval start in `Europe/Helsinki`; on the autumn DST day two intervals share
+a `time_key`. Each incremental run rebuilds the last 3 days (`lookback_days`). The first version of each station
+is valid from 1900-01-01, so observations older than the snapshot find a version.
 
-Gold models have **model contracts** (`contract: {enforced: true}`).
+Gold models have **model contracts** (`contract: {enforced: true}`) with named primary and foreign key
+constraints. Unity Catalog records those keys but doesn't enforce them; the `unique` and `relationships` tests do.
 
 ## Tests
 
@@ -50,7 +55,9 @@ Gold models have **model contracts** (`contract: {enforced: true}`).
 | --- | --- |
 | sources | `freshness` on bronze (bronze loads every 6 hours, so e.g. warn 8 h, error 24 h — tune after observing) |
 | staging | `unique` + `not_null` on natural keys |
-| intermediate | dbt **unit tests**: 60→15 min expansion; DST transition days |
+| staging (ENTSO-E) | `accepted_values` on zone, currency, unit, curve type, resolution |
+| intermediate | dbt **unit tests**: 60→15 min expansion, A03 forward-fill, 15-min preference, long Fingrid records, weather alignment; data test: every delivery period (DST days included) yields one price per quarter-hour |
 | `fct_power_15min` | `unique` + `not_null` on `interval_start_utc`; `relationships` to dims; custom test: every complete UTC day has exactly 96 rows (the fact is built from a 15-min time spine, because Fingrid has gaps; measures may be null) |
+| `fct_weather_15min` | unique (`interval_start_utc`, `weather_station_key`); `relationships` to dims; temperature and wind speed ranges (warn) |
 | `dim_weather_station` | one current row per station |
-| prices | `price_eur_mwh` within a sane range (negative prices are valid) |
+| prices | `price_eur_mwh` within the SDAC clearing price limits (vars, warn; negative prices are valid) |

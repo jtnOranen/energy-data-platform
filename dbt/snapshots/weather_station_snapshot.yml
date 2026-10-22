@@ -1,0 +1,13 @@
+snapshots:
+  - name: weather_station_snapshot
+    description: >
+      SCD2 history of the weather_stations seed: a changed row closes the old version
+      (dbt_valid_to) and opens a new one. dim_weather_station is built on it.
+    relation: ref('weather_stations')
+    config:
+      schema: silver
+      unique_key: fmisid
+      strategy: check
+      check_cols: all
+      # A station removed from the seed gets its current version closed instead of staying current.
+      hard_deletes: invalidate

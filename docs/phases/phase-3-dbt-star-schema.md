@@ -188,9 +188,12 @@ dbt **unit tests** (`unit_tests:` in YAML, fixture rows inline):
 | `dim_time_15min` | dimension, 96 rows | `time_key` (local time of day) | hour, minute, `quarter_of_hour`, label |
 | `dim_weather_station` | dimension, SCD2 | `weather_station_key` | `fmisid`, name, coordinates, role, `valid_from`, `valid_to`, `is_current` |
 
-- **The facts are built from a 15-minute time spine** from 2024-01-01 00:00 UTC to the latest interval
-  in the inputs, because Fingrid has gaps (`docs/data-sources.md`); measures may be null. Every
-  complete UTC day therefore has exactly 96 rows (ADR 0005).
+- **The power fact is built from a 15-minute time spine** from 2024-01-01 00:00 UTC to the latest
+  interval in the inputs, because Fingrid has gaps (`docs/data-sources.md`); measures may be null.
+  Every complete UTC day therefore has exactly 96 rows (ADR 0005). The weather fact needs no spine:
+  FMI has no gaps (step 0 item 6), so it comes straight from `int_weather_15min` (changed during
+  implementation). Prices reach the end of today, Fingrid only the last hour, so today's later
+  intervals have a price and null power until the next run.
 - `date_key` and `time_key` come from the interval start in `Europe/Helsinki`, because the report
   questions are about local days and hours. On the autumn DST day, local 03:00–03:45 occurs twice, so
   two intervals share a `time_key`; that's correct for hour-of-day profiles and documented.
@@ -201,9 +204,14 @@ dbt **unit tests** (`unit_tests:` in YAML, fixture rows inline):
   replaces earlier rows. `--full-refresh` rebuilds from silver.
 - **Station metadata** comes from the seed `weather_stations.csv` (we don't ingest FMI station
   metadata); the snapshot turns edits to the seed into SCD2 history, and `fct_weather_15min` points to
-  the station version valid at the interval (decision 4).
+  the station version valid at the interval (decision 4). Names and coordinates come from FMI's
+  station metadata (`fmi::ef::stations`). The snapshot's first version starts when it first ran, so
+  `dim_weather_station` makes each station's first version valid from 1900-01-01 and the current
+  one until 9999-12-31; otherwise observations from 2024 would find no version.
 - **Contracts** (`contract: {enforced: true}`) on all gold models: column names and types, `not_null`
-  constraints on keys, `primary_key` constraints (informational in Unity Catalog).
+  constraints on keys, named `primary_key` and `foreign_key` constraints (informational in Unity
+  Catalog, `warn_unenforced: false`; the tests do the enforcing). `dim_date` covers a fixed range,
+  2024-01-01 to 2030-12-31, so it doesn't depend on the facts.
 
 Gold tests: `unique` + `not_null` on the keys; `relationships` from the facts to the dimensions; the
 singular test **every complete UTC day has exactly 96 rows** in `fct_power_15min`; `dim_weather_station`
