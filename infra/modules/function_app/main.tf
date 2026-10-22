@@ -139,6 +139,12 @@ resource "azapi_resource" "function_app" {
       }
     }
   }
+
+  # Azure adds this tag itself to link the app to Application Insights in the portal. Removing it
+  # on every apply would only make Azure add it back, so leave it alone.
+  lifecycle {
+    ignore_changes = [tags["hidden-link: /app-insights-resource-id"]]
+  }
 }
 
 # --- Role assignments for the function's identity -----------------------------------------
