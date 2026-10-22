@@ -165,8 +165,14 @@ dbt **unit tests** (`unit_tests:` in YAML, fixture rows inline):
 
 - `int_price_15min`: a 60-minute period expands to four rows per hour with the same price; a
   15-minute period passes through; an omitted A03 position is forward-filled, including two in a row
-  and one at the end of the period; the spring DST delivery day (23 hours = 92 quarter-hours) and the
-  autumn one (25 hours = 100) end at the right UTC interval.
+  and two at the end of the period (which only the period length reveals); the 15-minute price wins
+  over a 60-minute one for the same interval.
+- **DST days are a data test, not a unit test** (changed during implementation): a unit test
+  compares every output row, so a 23-hour day would need 92 expected rows. Instead the singular
+  test `assert_price_covers_each_delivery_period` checks that every real delivery period yields one
+  price per quarter-hour of its length. Bronze has three spring days (92) and two autumn days (100),
+  so the real DST days are covered on every build. The unit tests above cover the mechanism (the
+  period length, not a fixed 24 or 96, decides the number of positions).
 - `int_power_15min`: a 30-minute Fingrid record becomes two intervals; a missing dataset leaves its
   column null instead of dropping the row.
 - `int_weather_15min`: the 2-1-2-1 alignment of 10-minute points to quarter-hours; `NaN` (null)

@@ -30,6 +30,7 @@ Writes to your own schemas `dev_silver` and `dev_gold`, never to `silver`/`gold`
 ```bash
 uv run dbt build                 # models + tests
 uv run dbt build -s staging      # one folder
+uv run dbt test --select test_type:unit   # unit tests only
 uv run dbt source freshness
 uv run sqlfluff lint models      # needs a login too: the dbt templater compiles the project
 ```
@@ -46,5 +47,8 @@ uv run sqlfluff lint models      # needs a login too: the dbt templater compiles
 
 - `models/staging/`: one model per bronze table, typed and deduplicated (latest fetch wins; ENTSO-E
   per whole delivery period). Views in `silver`.
+- `models/intermediate/`: everything aligned to 15-minute intervals (price fill and expansion,
+  Fingrid combined, FMI averaged). Views in `silver`, unit tests in `_intermediate.yml`.
+- `tests/`: singular data tests (each delivery period yields one price per quarter-hour).
 - `macros/generate_schema_name.sql`: production names only for `prod`.
 - `.sqlfluff`: dbt templater, Databricks dialect, lowercase keywords.
