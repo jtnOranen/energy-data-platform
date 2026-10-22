@@ -99,8 +99,8 @@ resource "azurerm_role_assignment" "owner_landing" {
   principal_id         = var.owner_object_id
 }
 
-# Created by infra/bootstrap/bootstrap.sh, not Terraform, for the same reason as the resource
-# group: its managed resource group is a subscription-level operation. See docs/adr/0012.
+# Created by infra/bootstrap/bootstrap.sh, not Terraform, like the resource group, so the CI service
+# principal needs no subscription-level rights. Serverless compute mode. See docs/adr/0012 and 0013.
 data "azurerm_databricks_workspace" "dev" {
   name                = "dbw-energy-dev"
   resource_group_name = data.azurerm_resource_group.dev.name

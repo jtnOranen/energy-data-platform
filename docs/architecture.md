@@ -75,4 +75,4 @@ recorded in the README.
 ## Decisions
 
 See `docs/adr/`. Key ones: Azure Function for ingestion (0002), dbt for transformations (0003), OIDC for CI (0004),
-UTC and 15-minute grain (0005), serverless jobs for bronze (0011), workspace in bootstrap (0012).
+UTC and 15-minute grain (0005), serverless jobs for bronze (0011), workspace in bootstrap (0012), serverless workspace (0013).

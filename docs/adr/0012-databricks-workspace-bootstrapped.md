@@ -1,6 +1,7 @@
 # 0012 — The Databricks workspace is bootstrapped, not created by Terraform
 
-- Status: accepted
+- Status: accepted (the workspace became serverless in ADR 0013, which has no managed resource
+  group with classic infrastructure; it stays in bootstrap for the same least-privilege reason)
 - Date: 2026-10-22
 
 ## Context

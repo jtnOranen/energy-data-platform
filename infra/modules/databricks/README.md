@@ -1,9 +1,8 @@
 # databricks
 
 Azure-side pieces Unity Catalog needs to reach the ADLS account. The workspace itself is **not** here:
-`infra/bootstrap/bootstrap.sh` creates it, because creating its managed resource group needs a
-subscription-level right the CI service principal doesn't have (ADR 0012). `envs/dev/main.tf` reads it
-with a data source.
+`infra/bootstrap/bootstrap.sh` creates it as a serverless workspace, so the CI service principal needs
+no subscription-level rights (ADRs 0012, 0013). `envs/dev/main.tf` reads it with a data source.
 
 - An access connector (`dbac-<project>-<env>`) with a system-assigned identity. A Unity Catalog storage
   credential points at it, so Databricks reaches storage without keys or secrets.
