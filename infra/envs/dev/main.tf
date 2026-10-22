@@ -1,5 +1,8 @@
 provider "azurerm" {
   features {}
+
+  # The storage accounts have Shared Key disabled, so storage data-plane calls use Entra ID.
+  storage_use_azuread = true
 }
 
 # Reads the same ARM_* environment variables (OIDC in CI) or the az login session locally.
