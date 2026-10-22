@@ -47,6 +47,9 @@ checked in PRs B and C and the outcome is recorded here.
    `CREATE_CATALOG`, `CREATE_EXTERNAL_LOCATION` and `CREATE_STORAGE_CREDENTIAL` (item 2), and the
    workspace was attached to `metastore_azure_swedencentral` with a default workspace catalog
    `dbw_energy_dev`, which we don't use.
+   The same missing management token matters for the storage credential: Unity Catalog can't check
+   the caller's Azure role on the access connector, so it requires the **connector's identity to have
+   Reader on the connector itself** (found on PR B's first apply, fixed in `modules/databricks`).
 4. **Auth from GitHub Actions:** the SDK has an `auth_type` **`github-oidc-azure`**: it requests a GitHub
    ID token with audience `api://AzureADTokenExchange` and exchanges it at Entra ID for a token for the
    Azure Databricks application. It reuses the federated credentials from phase 0 and needs
