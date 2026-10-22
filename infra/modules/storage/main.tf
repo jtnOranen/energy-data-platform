@@ -18,3 +18,11 @@ resource "azurerm_storage_container" "landing" {
   storage_account_id    = azurerm_storage_account.this.id
   container_access_type = "private"
 }
+
+# Unity Catalog managed storage for the `energy` catalog: managed tables, volumes and Auto Loader
+# checkpoints. Separate from `landing` so Databricks can write here while only reading landing.
+resource "azurerm_storage_container" "lake" {
+  name                  = "lake"
+  storage_account_id    = azurerm_storage_account.this.id
+  container_access_type = "private"
+}

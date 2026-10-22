@@ -1,0 +1,14 @@
+# databricks
+
+Azure-side pieces Unity Catalog needs to reach the ADLS account. The workspace itself is **not** here:
+`infra/bootstrap/bootstrap.sh` creates it, because creating its managed resource group needs a
+subscription-level right the CI service principal doesn't have (ADR 0012). `envs/dev/main.tf` reads it
+with a data source.
+
+- An access connector (`dbac-<project>-<env>`) with a system-assigned identity. A Unity Catalog storage
+  credential points at it, so Databricks reaches storage without keys or secrets.
+- Three roles for that identity:
+  - Storage Blob Delegator on the account: needed whenever data roles are scoped to containers, since
+    Unity Catalog uses user delegation SAS tokens. Gives no data access on its own.
+  - Storage Blob Data Reader on `landing`: bronze only reads raw files.
+  - Storage Blob Data Contributor on `lake`: the catalog's managed storage.

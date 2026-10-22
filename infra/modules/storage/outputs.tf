@@ -22,3 +22,13 @@ output "primary_blob_endpoint" {
   description = "Primary blob endpoint of the ADLS account."
   value       = azurerm_storage_account.this.primary_blob_endpoint
 }
+
+output "lake_container_name" {
+  description = "Name of the container for Unity Catalog managed storage."
+  value       = azurerm_storage_container.lake.name
+}
+
+output "lake_container_id" {
+  description = "Resource Manager ID of the lake container, for container-scoped role assignments."
+  value       = azurerm_storage_container.lake.id
+}
