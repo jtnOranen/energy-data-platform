@@ -18,54 +18,63 @@ dbt, silver and gold (phase 3), the `silver`/`gold` schemas, the SQL warehouse, 
 
 1. Nothing to register: an Azure Databricks workspace creates the Databricks account on first use. The
    owner (Global Administrator of the tenant) becomes the first account admin.
-2. Databricks CLI (`winget install Databricks.DatabricksCLI`) to validate and run the bundle locally.
-3. After the workspace exists, log in once in the browser as the owner, so the account console and the
-   auto-provisioned metastore are reachable (see step 0).
+2. Re-run `infra/bootstrap/bootstrap.sh` after PR A's bootstrap change, before merging it: it creates
+   the workspace (needs the `databricks` Azure CLI extension, which the script installs).
+3. Databricks CLI (`winget install Databricks.DatabricksCLI`) to validate and run the bundle locally.
+4. After the workspace exists, log in once in the browser as the owner.
 
 ## Step 0: verify
 
-Resolve each **VERIFY** before writing the code that depends on it, and record the results in this file
-(as phase 1 did for `docs/data-sources.md`).
+Done on 2026-10-22 against the official documentation and the Databricks Go SDK source (which both the
+CLI and the Terraform provider use). Items 6 and 7 can only be settled by running the code; they are
+checked in PRs B and C and the outcome is recorded here.
 
-1. **Workspace creation with resource-group-scoped rights.** A workspace creates a managed resource group
-   (`databricks-rg-…`) outside `rg-energy-dev`. VERIFY that the CI service principal, which has
-   `Contributor` only on `rg-energy-dev` (ADR 0007), can still create the workspace, i.e. that the
-   Databricks resource provider creates the managed group with its own identity. If it can't, the
-   workspace moves to `bootstrap.sh` (same reasoning as ADR 0007) and gets an ADR.
-2. **Unity Catalog auto-enablement in `swedencentral`.** VERIFY that a new workspace is attached to an
-   auto-provisioned regional metastore, and which privileges a workspace admin gets on it (we need
-   `CREATE STORAGE CREDENTIAL`, `CREATE EXTERNAL LOCATION` and `CREATE CATALOG` for the CI principal). If
-   the metastore has no admin, decide whether the owner assigns the CI principal (account console) or
-   the grants are made once by hand and documented.
-3. **Service principal becomes workspace admin.** VERIFY that the CI SP, as `Contributor` on the
-   workspace resource, is added as a workspace admin the first time it authenticates with an Entra ID
-   token — no SCIM or account-level setup.
-4. **Auth from GitHub Actions.** VERIFY that both the Terraform `databricks` provider and the Databricks
-   CLI (`bundle deploy`) accept GitHub OIDC through the Azure SP (`auth_type = "github-oidc-azure"` /
-   `DATABRICKS_AUTH_TYPE`) with the federated credentials from phase 0, so no Databricks PAT or secret
-   is needed.
-5. **Serverless jobs** are available in `swedencentral` on the Premium tier, support Auto Loader with
-   `trigger(availableNow=True)` and the built-in `xml` format, and reach the ADLS account (no storage
-   firewall today). Note which serverless environment version and Spark version we pin, and the price
-   per DBU for the standard (cost-optimised) performance mode.
-6. **Read-only external location.** VERIFY that an external location created with `read_only = true`
-   validates with only `Storage Blob Data Reader` on the `landing` container.
-7. **XML parsing.** VERIFY against the recorded fixtures in `ingestion/tests/fixtures/` that Spark's
-   built-in XML reader handles the namespaces in the ENTSO-E and FMI documents, and with which `rowTag`.
+1. **Workspace creation needs a subscription-level right.** Creating a workspace requires `Contributor`
+   or `Owner` on the subscription, or a custom role with
+   `Microsoft.Resources/subscriptions/resourceGroups/write`, because the workspace creates its managed
+   resource group outside `rg-energy-dev`. The CI service principal has neither (ADR 0007), so the
+   **owner creates the workspace in `bootstrap.sh`** and Terraform reads it as a data source (ADR 0012).
+2. **Unity Catalog is enabled automatically** for new workspaces, with an auto-provisioned regional
+   metastore that has **no metastore admin**. Instead, workspace admins get `CREATE CATALOG`,
+   `CREATE EXTERNAL LOCATION`, `CREATE STORAGE CREDENTIAL` and `CREATE CONNECTION` on it, which is
+   everything PR B needs. No account-console setup.
+3. **Workspace admins:** principals with `Contributor` or `Owner` on the workspace resource are added to
+   the workspace `admins` group automatically. The CI SP has `Contributor` on `rg-energy-dev`, so it
+   inherits it on the workspace. The docs describe this for users; PR B's first apply confirms it for
+   the SP.
+4. **Auth from GitHub Actions:** the SDK has an `auth_type` **`github-oidc-azure`**: it requests a GitHub
+   ID token with audience `api://AzureADTokenExchange` and exchanges it at Entra ID for a token for the
+   Azure Databricks application. It reuses the federated credentials from phase 0 and needs
+   `ARM_CLIENT_ID`, `ARM_TENANT_ID` and the workspace `host`. No PAT or client secret. (`github-oidc` is
+   a different thing: Databricks' own federation policy, not needed here.)
+5. **Serverless compute for jobs is available in `swedencentral`.** Spark's built-in XML reader needs
+   DBR 14.3+, which current serverless environments exceed. The pinned environment version and the DBU
+   price are recorded in PR C.
+6. **Storage roles:** Databricks documents either `Storage Blob Data Contributor` on the account, or
+   `Storage Blob Delegator` on the account plus a data role on the container. We scope per container,
+   so the access connector also gets **Storage Blob Delegator** on the account (it only allows getting
+   a user delegation key; it grants no data access by itself). Whether `Storage Blob Data Reader` is
+   enough for the read-only `landing` location is not documented: checked by the external location
+   validation in PR B.
+7. **XML parsing** of the ENTSO-E and FMI namespaces: checked with the recorded fixtures in PR C's tests.
 
 ## Deliverables
 
-Delivered as small PRs in this order: (A) Azure resources, (B) Unity Catalog objects, (C) the bundle
-and its CI. A and B are separate because the `databricks` provider needs the workspace to exist before
-it can plan anything against it; splitting avoids an unknown provider host on the first plan.
+Delivered as small PRs in this order: (A) workspace and Azure resources, (B) Unity Catalog objects,
+(C) the bundle and its CI. A and B are separate so the `databricks` provider is added only once the
+workspace and the access connector exist and their roles have propagated.
 
-### A. Terraform: workspace, access connector, storage (`infra/`)
+### A. Workspace (bootstrap) and Azure resources (Terraform)
 
-New module `infra/modules/databricks_workspace/`, called from `envs/dev/main.tf`:
+`infra/bootstrap/bootstrap.sh` creates the workspace (ADR 0012), run by the owner:
 
-- `azurerm_databricks_workspace` `dbw-energy-dev`, **Premium** SKU (required for Unity Catalog),
-  managed resource group `rg-energy-dev-dbw-managed`, no VNet injection (serverless doesn't use the
-  workspace VNet, and VNet injection adds cost and setup for nothing here).
+- `dbw-energy-dev` in `rg-energy-dev`, **Premium** SKU (required for Unity Catalog), managed resource
+  group `rg-energy-dev-dbw-managed`, no VNet injection (serverless doesn't use the workspace VNet, and
+  VNet injection adds cost and setup for nothing here). Idempotent like the rest of the script.
+
+Terraform reads it with `data "azurerm_databricks_workspace"` and adds, in a new module
+`infra/modules/databricks/`:
+
 - `azurerm_databricks_access_connector` `dbac-energy-dev` with a system-assigned identity. Unity Catalog
   uses it to reach ADLS (architecture.md, security model).
 
@@ -77,13 +86,15 @@ Role assignments (inside `rg-energy-dev`):
 
 | Principal | Role | Scope |
 | --- | --- | --- |
+| Access connector | Storage Blob Delegator | the ADLS account (needed for container-scoped roles, step 0 item 6) |
 | Access connector | Storage Blob Data Reader | the `landing` container (bronze never writes there) |
 | Access connector | Storage Blob Data Contributor | the `lake` container |
 
 ### B. Terraform: Unity Catalog objects (`infra/`)
 
-New module `infra/modules/unity_catalog/` using the `databricks` provider (workspace level, configured
-with `azure_workspace_resource_id`, so it authenticates with the same Entra ID identity as `azurerm`):
+New module `infra/modules/unity_catalog/` using the `databricks` provider at workspace level, with
+`host` from the workspace data source. In CI it authenticates as the same SP as `azurerm`
+(`auth_type = "github-oidc-azure"`, step 0 item 4); locally `terraform plan` uses the owner's `az login`:
 
 - `databricks_storage_credential` `energy-dev-adls` → the access connector.
 - `databricks_external_location` `landing` (`abfss://landing@<account>…/`, `read_only = true`) and
@@ -176,8 +187,7 @@ This pulls part of phase 4 forward, as phase 1 did for the function.
 ### E. Docs
 
 - `docs/architecture.md`: serverless instead of single-node job clusters (cost controls, components).
-- ADR 0011 (serverless jobs compute) is written with this spec; more ADRs if step 0 forces them
-  (e.g. the workspace moving to `bootstrap.sh`).
+- ADRs 0011 (serverless jobs compute) and 0012 (workspace in bootstrap) are written with this spec.
 - `docs/data-model.md`: bronze columns as above.
 - `databricks/README.md`: deploy, run once by hand, rebuild a table.
 - Conventions: `dbac-<project>-<env>` for the access connector, `lake` container.
@@ -194,10 +204,12 @@ ideally before A.
 2. **Deploy the bundle from CI in this phase**, same pattern as the function in phase 1.
 3. **Hourly cron at :30 UTC** instead of a file-arrival trigger: predictable, one run per hour instead of
    one per source file batch, and matches "hourly, not continuous" in architecture.md.
+4. **The workspace is created by `bootstrap.sh`**, not Terraform, so the CI service principal keeps no
+   subscription-level rights. See ADR 0012.
 
 ## Acceptance criteria
 
-- [ ] Every VERIFY in step 0 is resolved and recorded here.
+- [ ] Step 0 items 3, 6 and 7 are confirmed by running code and recorded here.
 - [ ] `terraform plan` after apply shows no changes.
 - [ ] No Databricks PAT, client secret or storage key anywhere: CI uses OIDC, UC uses the access connector.
 - [ ] `uv run pytest` and ruff pass locally and in CI; `databricks bundle validate` passes in CI.
