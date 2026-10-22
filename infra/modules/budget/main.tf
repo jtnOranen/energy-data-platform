@@ -26,6 +26,16 @@ resource "azurerm_consumption_budget_resource_group" "this" {
     contact_emails = [var.alert_email]
   }
 
+  # Warns while there is still time to react: actual-cost alerts only fire once the money is spent,
+  # and Azure cost data lags by up to a day.
+  notification {
+    enabled        = true
+    threshold      = 100
+    threshold_type = "Forecasted"
+    operator       = "GreaterThan"
+    contact_emails = [var.alert_email]
+  }
+
   lifecycle {
     ignore_changes = [time_period[0].start_date]
   }
