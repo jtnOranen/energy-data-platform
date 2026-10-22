@@ -101,3 +101,6 @@ dbt build
   `envs/dev/main.tf`) — so the CI service principal's roles stay scoped to `rg-energy-dev` instead of
   the whole (personal) subscription. See ADR 0007. A new resource group in a later phase needs the same
   treatment, not a Terraform-created one.
+- **The Databricks workspace is created by `bootstrap.sh` too** (data source in Terraform), because its
+  managed resource group is a subscription-level operation (ADR 0012). Don't move it into Terraform.
+  Unity Catalog objects and the access connector *are* Terraform.

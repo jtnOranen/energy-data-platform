@@ -92,3 +92,23 @@ resource "azurerm_role_assignment" "owner_landing" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = var.owner_object_id
 }
+
+# Created by infra/bootstrap/bootstrap.sh, not Terraform, for the same reason as the resource
+# group: its managed resource group is a subscription-level operation. See docs/adr/0012.
+data "azurerm_databricks_workspace" "dev" {
+  name                = "dbw-energy-dev"
+  resource_group_name = data.azurerm_resource_group.dev.name
+}
+
+module "databricks" {
+  source = "../../modules/databricks"
+
+  project              = "energy"
+  env                  = "dev"
+  location             = var.location
+  resource_group_name  = data.azurerm_resource_group.dev.name
+  tags                 = local.tags
+  storage_account_id   = module.storage.storage_account_id
+  landing_container_id = module.storage.landing_container_id
+  lake_container_id    = module.storage.lake_container_id
+}

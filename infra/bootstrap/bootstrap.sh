@@ -24,6 +24,8 @@ LOCATION="${LOCATION:-swedencentral}"
 REPO="energy-data-platform"
 RESOURCE_GROUP="rg-energy-tfstate"
 DEV_RESOURCE_GROUP="rg-energy-dev"
+DATABRICKS_WORKSPACE="dbw-energy-dev"
+DATABRICKS_MANAGED_RESOURCE_GROUP="rg-energy-dev-dbw-managed"
 CONTAINER_NAME="tfstate"
 SP_NAME="gh-energy-data-platform"
 
@@ -53,6 +55,27 @@ az group create \
   --location "$LOCATION" \
   --tags project=energy env=dev managed_by=bootstrap-script \
   -o none
+
+# Also created here, not by Terraform: a workspace creates its own managed resource group,
+# which is a subscription-level operation the CI service principal can't do. See ADR 0012.
+# envs/dev/main.tf reads the workspace via a data source.
+echo "==> Databricks workspace: $DATABRICKS_WORKSPACE"
+az provider register --namespace Microsoft.Databricks --wait -o none
+az extension add --name databricks --upgrade --only-show-errors -o none
+if az databricks workspace show --name "$DATABRICKS_WORKSPACE" --resource-group "$DEV_RESOURCE_GROUP" \
+    -o none 2>/dev/null; then
+  echo "    found existing: $DATABRICKS_WORKSPACE"
+else
+  echo "    creating (takes a few minutes): $DATABRICKS_WORKSPACE"
+  az databricks workspace create \
+    --name "$DATABRICKS_WORKSPACE" \
+    --resource-group "$DEV_RESOURCE_GROUP" \
+    --location "$LOCATION" \
+    --sku premium \
+    --managed-resource-group "$DATABRICKS_MANAGED_RESOURCE_GROUP" \
+    --tags project=energy env=dev managed_by=bootstrap-script \
+    -o none
+fi
 
 echo "==> Terraform state storage account"
 # The suffix must stay stable across re-runs (it's part of the resource name),
@@ -202,6 +225,7 @@ echo ""
 echo "==> Done"
 echo "Resource group (tfstate): $RESOURCE_GROUP"
 echo "Resource group (dev):     $DEV_RESOURCE_GROUP"
+echo "Databricks workspace:     $DATABRICKS_WORKSPACE"
 echo "Storage account:   $STORAGE_ACCOUNT"
 echo "Blob container:    $CONTAINER_NAME"
 echo "App registration:  $SP_NAME ($APP_ID)"

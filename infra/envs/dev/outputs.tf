@@ -17,3 +17,13 @@ output "function_app_name" {
   description = "Name of the ingestion function app."
   value       = module.function_app.function_app_name
 }
+
+output "databricks_workspace_url" {
+  description = "URL of the Databricks workspace (created by bootstrap.sh)."
+  value       = "https://${data.azurerm_databricks_workspace.dev.workspace_url}"
+}
+
+output "databricks_access_connector_id" {
+  description = "Resource ID of the Databricks access connector."
+  value       = module.databricks.access_connector_id
+}
