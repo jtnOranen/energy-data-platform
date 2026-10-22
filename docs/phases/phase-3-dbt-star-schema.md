@@ -11,7 +11,7 @@ Done when (from `docs/roadmap.md`): **`dbt build` passes and gold answers the re
 ## Out of scope
 
 The dashboard, price-spike analysis, pipeline-health page and alerting (phase 5). Per-PR schemas
-(`pr_<number>`) and slim CI with `state:modified+` (phase 4, see decision 3). The forecast extension.
+(`pr_<number>`) and slim CI with `state:modified+` (phase 4, decision 3). The forecast extension.
 No changes to ingestion or bronze, except the job wiring in the bundle.
 
 ## Manual prerequisites (owner)
@@ -19,7 +19,7 @@ No changes to ingestion or bronze, except the job wiring in the bundle.
 1. `uv sync --group dbt` locally (new dependency group, see deliverable B) and a browser login for dbt's
    OAuth (`auth_type: oauth`, step 0 item 5). Nothing to register.
 2. Phase 2 accepted (two scheduled bronze runs, week-1 cost recorded), because the dbt job's cost
-   decision (decision 1) builds on the bronze cost.
+   estimate builds on the bronze cost.
 
 ## Step 0: verify
 
@@ -42,7 +42,7 @@ PR that needs them, and the outcome is recorded here.
 4. **Warehouse cost:** a serverless SQL warehouse at 2X-Small uses **4 DBU/hour** (Microsoft Learn
    pricing page). Confirm the Azure Premium price per serverless SQL DBU in `swedencentral` (the AWS list
    price is $0.70, about $2.80/hour) and the minimum `auto_stop_mins` the API accepts for serverless
-   (the UI's minimum is higher). This decides decision 1.
+   (the UI's minimum is higher), and that a daily run stays within the budget.
 5. **Auth:** CI gets an Entra ID token for the Azure Databricks resource after `azure/login` with OIDC
    (`az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`) and passes it to dbt
    as `token`, so no PAT or secret. Locally the owner uses dbt-databricks' `auth_type: oauth`
@@ -193,7 +193,7 @@ warnings, not errors.
   warehouse from A, `profiles_directory` and `project_directory` per step 0 item 3.
 - Commands: `dbt deps`, `dbt build`, `dbt source freshness`. Freshness runs last, so a stale source
   fails the run visibly without stopping gold from updating with what did arrive.
-- Schedule per decision 1. `max_concurrent_runs: 1`, one retry.
+- Schedule: daily at **07:15 UTC** (decision 1). `max_concurrent_runs: 1`, one retry.
 - `.github/workflows/databricks.yml` also triggers on `dbt/**` (the bundle deploys the project files).
 
 **CI for `dbt/`** (in the same workflow or a new `dbt.yml`, on PRs and `main`): `uv sync --group dbt`,
@@ -216,7 +216,7 @@ criteria), one per report question in `docs/roadmap.md`:
 - `docs/data-model.md`: updated to what is built (three Fingrid staging models, `production_mw`, the
   separate weather fact, alignment rules, the spine).
 - `docs/architecture.md`: the dbt job and the warehouse (components, cost controls).
-- ADR 0014: how dbt runs (job task on serverless + serverless SQL warehouse, schedule per decision 1).
+- ADR 0014 (written with this spec): dbt runs once a day as a job task on serverless compute.
 - `dbt/README.md`, `CLAUDE.md` commands (dbt group).
 - Every model and every gold column has a YAML description; `dbt docs generate` is uploaded as a CI
   artifact (publishing the docs site is phase 6).
@@ -225,28 +225,25 @@ criteria), one per report question in `docs/roadmap.md`:
 
 At about $2.80/hour for a 2X-Small serverless warehouse, a build of this size should take a few
 minutes plus the auto-stop delay: roughly $0.20–0.30 per run. Four runs a day (with every bronze load)
-would be about $25–35/month, more than the whole 20 € budget; one run a day about $6–9/month. The dbt
+would be about $25–35/month, more than the whole 20 € budget; one run a day (decision 1) about
+$6–9/month. The dbt
 CLI itself runs on serverless jobs compute for a minute or two per run. The budget alerts cover the
 warehouse (its DBUs are billed to the workspace in `rg-energy-dev`).
 
-## Decisions (open, for the owner)
+## Decisions (made by the owner on 2026-10-22)
 
-1. **How often dbt runs.** (a) **Once a day**, as its own job at 07:15 UTC after the 06:30 bronze
-   load: the price is day-ahead and the analysis historical, so a daily gold is enough, at about a
-   quarter of the cost. (b) After every bronze load, as a fourth task in `bronze_load` (as
-   `docs/architecture.md` sketches): fresher gold, about 4× the warehouse cost. **Recommendation: (a)**;
-   moving to (b) later is a small bundle change.
-2. **Who creates `silver` and `gold`.** (a) **Terraform**, like `bronze`: the CI SP owns all schemas and
-   the grants live in one place. (b) dbt creates them on first run. **Recommendation: (a)**; dbt still
-   creates the owner's dev schemas and, in phase 4, the PR schemas.
-3. **How much CI in this phase.** (a) **Parse and lint on PRs; unit tests and data tests run in the
-   job and locally**; slim CI in `pr_<n>` schemas with deferral to production stays in phase 4, as the
-   roadmap and architecture say. (b) Bring the full PR build forward now. **Recommendation: (a)**:
-   unit tests need their parent tables to exist, which is exactly what phase 4's deferral solves.
-4. **Station metadata as a seed with a snapshot.** (a) **A seed** (four rows we already know) with a
-   check-strategy snapshot, so the SCD2 dimension the data model promises has a real, editable source.
-   (b) Ingest FMI's station metadata from the API: a fourth ingestion path for four rows.
-   **Recommendation: (a)**.
+1. **dbt runs once a day**, as its own job `dbt_build` at 07:15 UTC after the 06:30 bronze load, not
+   after every bronze load as a fourth task in `bronze_load` (as `docs/architecture.md` sketched): the
+   price is day-ahead and the analysis historical, so a daily gold is enough, at about a quarter of the
+   warehouse cost. Moving to every load later is a small bundle change. See ADR 0014.
+2. **Terraform creates `silver` and `gold`**, like `bronze`: the CI SP owns all schemas and the grants
+   live in one place. dbt creates only the owner's dev schemas and, in phase 4, the PR schemas.
+3. **Parse and lint on PRs in this phase; unit tests and data tests run in the job and locally.** Slim
+   CI in `pr_<n>` schemas with deferral to production stays in phase 4, as the roadmap and architecture
+   say: unit tests need their parent tables to exist, which is exactly what deferral solves.
+4. **Station metadata comes from a seed with a snapshot** (four rows we already know, check strategy),
+   so the SCD2 dimension has a real, editable source, instead of a fourth ingestion path for FMI's
+   station metadata API.
 
 ## Acceptance criteria
 
