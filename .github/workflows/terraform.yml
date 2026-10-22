@@ -21,6 +21,9 @@ env:
   ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  # The databricks provider reuses ARM_CLIENT_ID / ARM_TENANT_ID and the same federated
+  # credential (phase 2 spec, step 0).
+  DATABRICKS_AUTH_TYPE: github-oidc-azure
   # Terraform reads TF_VAR_<name> automatically, so no -var flags or tfvars file are
   # needed in CI. None of these are secrets (see CLAUDE.md rule 5); they're stored as
   # repo variables for the same reason the Azure IDs above are.

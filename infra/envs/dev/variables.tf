@@ -5,7 +5,7 @@ variable "location" {
 }
 
 variable "owner" {
-  description = "Resource owner, used only as a tag value (e.g. an email or name)."
+  description = "Owner's Entra ID user principal name (email): the owner tag and the owner's Unity Catalog principal."
   type        = string
 }
 

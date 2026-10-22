@@ -14,5 +14,9 @@ terraform {
       source  = "azure/azapi"
       version = "~> 2.0"
     }
+    databricks = {
+      source  = "databricks/databricks"
+      version = "~> 1.0"
+    }
   }
 }

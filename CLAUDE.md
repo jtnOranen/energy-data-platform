@@ -103,4 +103,6 @@ dbt build
   treatment, not a Terraform-created one.
 - **The Databricks workspace is created by `bootstrap.sh` too** (data source in Terraform), because its
   managed resource group is a subscription-level operation (ADR 0012). Don't move it into Terraform.
-  Unity Catalog objects and the access connector *are* Terraform.
+  Unity Catalog objects and the access connector *are* Terraform. `bootstrap.sh` also makes the CI
+  service principal a workspace admin: with GitHub OIDC auth (`github-oidc-azure`) Databricks doesn't
+  auto-provision a Contributor SP the way it does with a client secret.

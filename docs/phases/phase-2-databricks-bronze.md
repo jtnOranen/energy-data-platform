@@ -39,9 +39,14 @@ checked in PRs B and C and the outcome is recorded here.
    `CREATE EXTERNAL LOCATION`, `CREATE STORAGE CREDENTIAL` and `CREATE CONNECTION` on it, which is
    everything PR B needs. No account-console setup.
 3. **Workspace admins:** principals with `Contributor` or `Owner` on the workspace resource are added to
-   the workspace `admins` group automatically. The CI SP has `Contributor` on `rg-energy-dev`, so it
-   inherits it on the workspace. The docs describe this for users; PR B's first apply confirms it for
-   the SP.
+   the workspace `admins` group automatically, but for a service principal only when the client also
+   sends an Azure management token (`X-Databricks-Azure-SP-Management-Token`). The SDK's
+   `azure-client-secret` auth does; `github-oidc-azure` doesn't (checked in the SDK source). So
+   **`bootstrap.sh` adds the CI SP to the workspace `admins` group** through the SCIM API, as the owner.
+   Confirmed on 2026-10-22 after bootstrap: the metastore grants the workspace admins group
+   `CREATE_CATALOG`, `CREATE_EXTERNAL_LOCATION` and `CREATE_STORAGE_CREDENTIAL` (item 2), and the
+   workspace was attached to `metastore_azure_swedencentral` with a default workspace catalog
+   `dbw_energy_dev`, which we don't use.
 4. **Auth from GitHub Actions:** the SDK has an `auth_type` **`github-oidc-azure`**: it requests a GitHub
    ID token with audience `api://AzureADTokenExchange` and exchanges it at Entra ID for a token for the
    Azure Databricks application. It reuses the federated credentials from phase 0 and needs

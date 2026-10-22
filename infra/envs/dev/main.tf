@@ -5,6 +5,12 @@ provider "azurerm" {
 # Reads the same ARM_* environment variables (OIDC in CI) or the az login session locally.
 provider "azapi" {}
 
+# Workspace-level provider. In CI, DATABRICKS_AUTH_TYPE=github-oidc-azure makes it exchange the
+# GitHub OIDC token for an Entra ID token as the same service principal; locally it uses az login.
+provider "databricks" {
+  host = "https://${data.azurerm_databricks_workspace.dev.workspace_url}"
+}
+
 resource "random_string" "suffix" {
   length  = 4
   special = false
@@ -111,4 +117,16 @@ module "databricks" {
   storage_account_id   = module.storage.storage_account_id
   landing_container_id = module.storage.landing_container_id
   lake_container_id    = module.storage.lake_container_id
+}
+
+module "unity_catalog" {
+  source = "../../modules/unity_catalog"
+
+  project                = "energy"
+  env                    = "dev"
+  access_connector_id    = module.databricks.access_connector_id
+  storage_account_name   = module.storage.storage_account_name
+  landing_container_name = module.storage.landing_container_name
+  lake_container_name    = module.storage.lake_container_name
+  owner_user_name        = var.owner
 }
