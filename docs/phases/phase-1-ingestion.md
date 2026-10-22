@@ -158,12 +158,13 @@ Checked 2026-10-20 (PRs #2–#9). One item is open, see below.
 
 - [x] All VERIFY items in `docs/data-sources.md` are resolved.
 - [x] `terraform plan` after apply shows no changes (the apply job checks this automatically).
-- [ ] No secret values in the repo, in Terraform state, or in app settings (only Key Vault references).
+- [x] No secret values in the repo, in Terraform state, or in app settings (only Key Vault references).
       Repo and app settings: yes (gitleaks clean; the API keys are Key Vault references; the App Insights
-      connection string can't ingest anything with local auth disabled). **Terraform state: no.**
+      connection string can't ingest anything with local auth disabled). Terraform state:
       `azurerm_storage_account` always stores both storage accounts' access keys in state, even though
-      nothing uses them. Follow-up: disable shared key access on both accounts, so the keys can't be
-      used even if read.
+      nothing uses them. **Resolved 2026-10-22** (during phase 2): Shared Key is disabled on both
+      accounts and the azurerm provider uses Entra ID for storage (`storage_use_azuread`), so the keys in
+      state can't authorize anything.
 - [x] `uv run pytest` and ruff pass locally and in CI; no test touches the network (38 tests; httpx
       without an explicit transport fails in tests).
 - [x] Each timer function has run in Azure and written a file per dataset to landing; App Insights shows

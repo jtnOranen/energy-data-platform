@@ -47,6 +47,10 @@ resource "azurerm_storage_account" "host" {
   account_kind                    = "StorageV2"
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
+  # Host and deployment storage are identity-based (see the function app below), so no client needs
+  # the account keys; with Shared Key off they're useless even though azurerm keeps them in state.
+  shared_access_key_enabled       = false
+  default_to_oauth_authentication = true
   tags                            = var.tags
 }
 

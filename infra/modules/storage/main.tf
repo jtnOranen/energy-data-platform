@@ -10,6 +10,12 @@ resource "azurerm_storage_account" "this" {
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
 
+  # Every client uses Entra ID: the function and the access connector with their identities, the
+  # backfill and Terraform with az login / OIDC. Disabling Shared Key makes the account keys (which
+  # azurerm still stores in state) useless even if read. The portal defaults to Entra ID too.
+  shared_access_key_enabled       = false
+  default_to_oauth_authentication = true
+
   tags = var.tags
 }
 
