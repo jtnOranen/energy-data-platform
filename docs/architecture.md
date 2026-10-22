@@ -49,7 +49,7 @@ Terraform creates every Azure and Databricks resource. GitHub Actions tests ever
 | Key Vault | Fingrid API key, ENTSO-E token | Function reads via managed identity (RBAC) |
 | Databricks Auto Loader job | Raw files → bronze Delta tables | Serverless, `availableNow` run every 6 hours; explicit schemas with `_rescued_data`; adds `_ingested_at`, `_source_file`, `_loaded_at` |
 | dbt (`dbt/`) | bronze → silver → gold | dbt-databricks adapter, serverless SQL warehouse |
-| Databricks Workflows | Orchestration: Auto Loader task, then dbt task | Defined in a Databricks Asset Bundle |
+| Databricks Workflows | Orchestration: `bronze_load` every 6 hours, `dbt_build` once a day after it | Defined in a Databricks Asset Bundle; dbt task on serverless jobs compute (ADR 0014) |
 | AI/BI dashboard | Report on gold | Defined in the bundle, screenshots in README |
 | Terraform (`infra/`) | All infrastructure | Remote state in a separately bootstrapped storage account |
 | GitHub Actions (`.github/`) | CI on PR, CD on `main` | OIDC to Azure, no long-lived secrets |
@@ -69,10 +69,10 @@ workspace, dropped when the PR closes. Production-like separation is shown throu
 ## Cost controls
 
 Budget alert in Terraform, serverless jobs compute for the bronze load (ADR 0011), smallest serverless SQL warehouse with
-auto-stop, scheduled (not continuous) runs (ingestion hourly, bronze every 6 hours), resource tags `project` and `env` on everything. Actual monthly cost is
+auto-stop, scheduled (not continuous) runs (ingestion hourly, bronze every 6 hours, dbt daily), resource tags `project` and `env` on everything. Actual monthly cost is
 recorded in the README.
 
 ## Decisions
 
 See `docs/adr/`. Key ones: Azure Function for ingestion (0002), dbt for transformations (0003), OIDC for CI (0004),
-UTC and 15-minute grain (0005), serverless jobs for bronze (0011), workspace in bootstrap (0012), serverless workspace (0013).
+UTC and 15-minute grain (0005), serverless jobs for bronze (0011), workspace in bootstrap (0012), serverless workspace (0013), daily dbt job (0014).
