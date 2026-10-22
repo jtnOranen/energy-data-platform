@@ -30,3 +30,7 @@ local.settings.json
 .env
 .env.*
 !.env.example
+
+# Databricks bundle: built wheels and local deployment state
+databricks/dist/
+databricks/.databricks/

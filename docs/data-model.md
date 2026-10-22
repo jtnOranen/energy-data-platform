@@ -12,10 +12,12 @@ One table per source dataset, raw structure plus metadata.
 | `bronze.fingrid_wind_production` | raw Fingrid records (dataset 75, 15 min) |
 | `bronze.fingrid_consumption` | raw Fingrid records (dataset 124, 15 min) |
 | `bronze.fingrid_production` | raw Fingrid records (dataset 74, 15 min) |
-| `bronze.entsoe_day_ahead_price` | parsed XML points with `period_start`, `resolution`, `position`, `price` |
-| `bronze.fmi_observations` | station, parameter, time, value |
+| `bronze.entsoe_day_ahead_price` | one row per XML `Point`: `document_mrid`, `revision_number`, `time_series_mrid`, `period_start`, `period_end`, `resolution`, `position`, `price_amount` |
+| `bronze.fmi_observations` | one row per time-value pair: `fmisid`, `parameter`, `time`, `value` |
 
-Every bronze table has `_ingested_at` and `_source_file`. Duplicates are expected (overlapping fetch windows).
+All bronze columns are strings, exactly as the source sent them; staging types them. Every bronze table
+has `_ingested_at` (fetch time from the file name), `_source_file`, `_loaded_at` and `_rescued_data`.
+Duplicates are expected (overlapping fetch windows).
 
 ## Silver (dbt, `models/staging` + `models/intermediate`)
 
@@ -46,7 +48,7 @@ Gold models have **model contracts** (`contract: {enforced: true}`).
 
 | Where | Test |
 | --- | --- |
-| sources | `freshness` (warn 3 h, error 12 h — tune after observing) |
+| sources | `freshness` on bronze (bronze loads every 6 hours, so e.g. warn 8 h, error 24 h — tune after observing) |
 | staging | `unique` + `not_null` on natural keys |
 | intermediate | dbt **unit tests**: 60→15 min expansion; DST transition days |
 | `fct_power_15min` | `unique` + `not_null` on `interval_start_utc`; `relationships` to dims; custom test: every complete UTC day has exactly 96 rows (the fact is built from a 15-min time spine, because Fingrid has gaps; measures may be null) |

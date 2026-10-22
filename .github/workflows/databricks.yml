@@ -1,0 +1,111 @@
+name: Databricks
+
+on:
+  pull_request:
+    paths:
+      - "databricks/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/databricks.yml"
+  push:
+    branches: [main]
+    paths:
+      - "databricks/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/databricks.yml"
+
+permissions:
+  contents: read
+
+env:
+  # The Databricks CLI exchanges the GitHub OIDC token for an Entra ID token as the CI service
+  # principal, with the same federated credentials as Terraform. No PAT or secret (phase 2 spec).
+  DATABRICKS_AUTH_TYPE: github-oidc-azure
+  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  # Same fork-PR gate as terraform.yml: only this repository's own branches get the OIDC token.
+  IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+
+jobs:
+  test:
+    name: ruff, pytest (with Spark)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java (for local Spark)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.0 # publishes no floating major tags
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --locked --group spark
+
+      - name: Ruff check
+        run: uv run ruff check databricks
+
+      - name: Ruff format
+        run: uv run ruff format --check databricks
+
+      - name: Pytest
+        run: uv run pytest databricks/tests
+
+  validate:
+    name: bundle validate
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: databricks
+    steps:
+      - name: Checkout
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Databricks CLI
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        uses: databricks/setup-cli@v1.21.0
+
+      - name: Bundle validate
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: databricks bundle validate -t dev
+
+  # Only for pushes to main, so fork PRs never reach the credentials (see ADR 0004).
+  deploy:
+    name: bundle deploy
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+    concurrency:
+      group: databricks-deploy-dev
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: databricks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv (builds the wheel)
+        uses: astral-sh/setup-uv@v10.3.0
+
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@v1.21.0
+
+      - name: Bundle deploy
+        run: databricks bundle deploy -t dev

@@ -1,0 +1,39 @@
+# Databricks Asset Bundle: the bronze load job (phase 2). Deployed by CI on pushes to main
+# (.github/workflows/databricks.yml), authenticating as the CI service principal with GitHub OIDC.
+bundle:
+  name: energy
+
+include:
+  - resources/*.yml
+
+artifacts:
+  energy_bronze:
+    type: whl
+    path: .
+    build: uv build --wheel --out-dir dist
+    # Serverless environments cache wheels by version; a unique version per deploy makes sure
+    # every deploy's code is the one that runs.
+    dynamic_version: true
+
+variables:
+  catalog:
+    description: Unity Catalog catalog (Terraform output databricks_catalog_name).
+    default: energy
+  landing_url:
+    description: Root of the landing container (Terraform output storage_account_name).
+    default: abfss://landing@stenergydevua7j.dfs.core.windows.net/
+
+targets:
+  dev:
+    default: true
+    # Production mode: no name prefixes and schedules stay active. dev is the only environment
+    # (docs/architecture.md), and it is the one the job really runs in.
+    mode: production
+    workspace:
+      # Terraform output databricks_workspace_url. Changes only if bootstrap.sh recreates the workspace.
+      host: https://adb-7405610438268005.5.azuredatabricks.net
+      # Fixed to the service principal's folder, so there is one deployed copy whoever runs the CLI.
+      root_path: /Workspace/Users/fa777966-7f5f-4c68-bfa2-29c733f7f8d5/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      # The CI service principal (repo variable AZURE_CLIENT_ID), which owns the Unity Catalog objects.
+      service_principal_name: fa777966-7f5f-4c68-bfa2-29c733f7f8d5
