@@ -9,6 +9,9 @@ models:
     staging:
       +schema: silver
       +materialized: view
+    intermediate:
+      +schema: silver
+      +materialized: view
 
 vars:
   # SDAC harmonised clearing price limits (phase 3 spec, step 0 item 7). They move automatically

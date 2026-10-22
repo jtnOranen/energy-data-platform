@@ -1,0 +1,176 @@
+models:
+  - name: int_price_15min
+    description: >
+      Day-ahead price per 15-minute interval. Positions omitted by curve type A03 are forward-filled
+      within their delivery period, then 60-minute prices are expanded to four equal quarter-hours
+      (ADR 0005). If an interval ever had both grains, the 15-minute price wins.
+    columns:
+      - name: interval_start_utc
+        description: Start of the 15-minute interval, UTC.
+        data_tests:
+          - unique
+          - not_null
+      - name: price_eur_mwh
+        description: Day-ahead price, EUR/MWh (negative prices are valid).
+        data_tests:
+          - not_null
+      - name: price_resolution_minutes
+        description: Grain the price was published at (60 before delivery day 2025-10-01, then 15).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [60, 15]
+                quote: false
+      - name: is_price_filled
+        description: True when ENTSO-E omitted this position (A03) and the price was forward-filled.
+        data_tests:
+          - not_null
+      - name: period_start_utc
+        description: Start of the delivery period the price belongs to, UTC.
+      - name: period_end_utc
+        description: End of the delivery period, UTC.
+
+  - name: int_power_15min
+    description: >
+      Wind production, consumption and production per 15-minute interval: one row per interval any
+      of the three Fingrid datasets has, null where a dataset has a gap. Records longer than 15
+      minutes are split into quarter-hours with the same average power.
+    columns:
+      - name: interval_start_utc
+        description: Start of the 15-minute interval, UTC.
+        data_tests:
+          - unique
+          - not_null
+      - name: wind_production_mw
+        description: Wind power generation, average MW.
+      - name: consumption_mw
+        description: Electricity consumption in Finland, average MW.
+      - name: production_mw
+        description: Electricity production in Finland, average MW.
+
+  - name: int_weather_15min
+    description: >
+      Temperature and wind speed per station and 15-minute interval: the average of the 10-minute
+      observations whose time falls in the interval (start inclusive), so intervals get two and one
+      observations in turn. Missing observations are ignored, not counted as zero.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [fmisid, interval_start_utc]
+    columns:
+      - name: fmisid
+        description: FMI station ID.
+        data_tests:
+          - not_null
+      - name: interval_start_utc
+        description: Start of the 15-minute interval, UTC.
+        data_tests:
+          - not_null
+      - name: temperature_c
+        description: Average air temperature (t2m), °C.
+      - name: wind_speed_ms
+        description: Average of the 10-minute mean wind speeds (ws_10min), m/s.
+      - name: observation_count
+        description: Number of 10-minute observation times in the interval (2 or 1).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2]
+                quote: false
+
+unit_tests:
+  - name: test_int_price_expands_hourly_prices_to_quarter_hours
+    description: A 60-minute price applies to all four quarter-hours of its hour.
+    model: int_price_15min
+    given:
+      - input: ref('stg_entsoe__day_ahead_price')
+        rows:
+          - {period_start_utc: "2024-01-01 23:00:00", period_end_utc: "2024-01-02 01:00:00", resolution_minutes: 60, point_position: 1, price_eur_mwh: 10.50}
+          - {period_start_utc: "2024-01-01 23:00:00", period_end_utc: "2024-01-02 01:00:00", resolution_minutes: 60, point_position: 2, price_eur_mwh: -2.00}
+    expect:
+      rows:
+        - {interval_start_utc: "2024-01-01 23:00:00", price_eur_mwh: 10.50, price_resolution_minutes: 60, is_price_filled: false}
+        - {interval_start_utc: "2024-01-01 23:15:00", price_eur_mwh: 10.50, price_resolution_minutes: 60, is_price_filled: false}
+        - {interval_start_utc: "2024-01-01 23:30:00", price_eur_mwh: 10.50, price_resolution_minutes: 60, is_price_filled: false}
+        - {interval_start_utc: "2024-01-01 23:45:00", price_eur_mwh: 10.50, price_resolution_minutes: 60, is_price_filled: false}
+        - {interval_start_utc: "2024-01-02 00:00:00", price_eur_mwh: -2.00, price_resolution_minutes: 60, is_price_filled: false}
+        - {interval_start_utc: "2024-01-02 00:15:00", price_eur_mwh: -2.00, price_resolution_minutes: 60, is_price_filled: false}
+        - {interval_start_utc: "2024-01-02 00:30:00", price_eur_mwh: -2.00, price_resolution_minutes: 60, is_price_filled: false}
+        - {interval_start_utc: "2024-01-02 00:45:00", price_eur_mwh: -2.00, price_resolution_minutes: 60, is_price_filled: false}
+
+  - name: test_int_price_forward_fills_omitted_positions
+    description: >
+      A03 omits repeated prices. Positions 2 and 3 (two in a row) take the price of position 1, and
+      positions 5 and 6 (at the end of the period, which only the period length reveals) take the
+      price of position 4. 15-minute prices pass through unexpanded.
+    model: int_price_15min
+    given:
+      - input: ref('stg_entsoe__day_ahead_price')
+        rows:
+          - {period_start_utc: "2025-10-01 22:00:00", period_end_utc: "2025-10-01 23:30:00", resolution_minutes: 15, point_position: 1, price_eur_mwh: 40.00}
+          - {period_start_utc: "2025-10-01 22:00:00", period_end_utc: "2025-10-01 23:30:00", resolution_minutes: 15, point_position: 4, price_eur_mwh: 55.25}
+    expect:
+      rows:
+        - {interval_start_utc: "2025-10-01 22:00:00", price_eur_mwh: 40.00, price_resolution_minutes: 15, is_price_filled: false}
+        - {interval_start_utc: "2025-10-01 22:15:00", price_eur_mwh: 40.00, price_resolution_minutes: 15, is_price_filled: true}
+        - {interval_start_utc: "2025-10-01 22:30:00", price_eur_mwh: 40.00, price_resolution_minutes: 15, is_price_filled: true}
+        - {interval_start_utc: "2025-10-01 22:45:00", price_eur_mwh: 55.25, price_resolution_minutes: 15, is_price_filled: false}
+        - {interval_start_utc: "2025-10-01 23:00:00", price_eur_mwh: 55.25, price_resolution_minutes: 15, is_price_filled: true}
+        - {interval_start_utc: "2025-10-01 23:15:00", price_eur_mwh: 55.25, price_resolution_minutes: 15, is_price_filled: true}
+
+  - name: test_int_price_prefers_15_minute_price
+    description: If the same quarter-hour has both grains, the 15-minute price wins.
+    model: int_price_15min
+    given:
+      - input: ref('stg_entsoe__day_ahead_price')
+        rows:
+          - {period_start_utc: "2025-09-30 22:00:00", period_end_utc: "2025-09-30 23:00:00", resolution_minutes: 60, point_position: 1, price_eur_mwh: 30.00}
+          - {period_start_utc: "2025-09-30 22:00:00", period_end_utc: "2025-09-30 22:30:00", resolution_minutes: 15, point_position: 1, price_eur_mwh: 31.00}
+          - {period_start_utc: "2025-09-30 22:00:00", period_end_utc: "2025-09-30 22:30:00", resolution_minutes: 15, point_position: 2, price_eur_mwh: 32.00}
+    expect:
+      rows:
+        - {interval_start_utc: "2025-09-30 22:00:00", price_eur_mwh: 31.00, price_resolution_minutes: 15}
+        - {interval_start_utc: "2025-09-30 22:15:00", price_eur_mwh: 32.00, price_resolution_minutes: 15}
+        - {interval_start_utc: "2025-09-30 22:30:00", price_eur_mwh: 30.00, price_resolution_minutes: 60}
+        - {interval_start_utc: "2025-09-30 22:45:00", price_eur_mwh: 30.00, price_resolution_minutes: 60}
+
+  - name: test_int_power_splits_long_records_and_keeps_gaps
+    description: >
+      A 30-minute record becomes two quarter-hours with the same value; an interval missing from a
+      dataset stays in the output with that column null.
+    model: int_power_15min
+    given:
+      - input: ref('stg_fingrid__wind_production')
+        rows:
+          - {interval_start_utc: "2024-11-15 18:00:00", interval_end_utc: "2024-11-15 18:30:00", wind_production_mw: 5709.15}
+      - input: ref('stg_fingrid__consumption')
+        rows:
+          - {interval_start_utc: "2024-11-15 18:00:00", interval_end_utc: "2024-11-15 18:15:00", consumption_mw: 11000.0}
+          - {interval_start_utc: "2024-11-15 18:15:00", interval_end_utc: "2024-11-15 18:30:00", consumption_mw: 11100.0}
+      - input: ref('stg_fingrid__production')
+        rows:
+          - {interval_start_utc: "2024-11-15 18:00:00", interval_end_utc: "2024-11-15 18:15:00", production_mw: 9000.0}
+    expect:
+      rows:
+        - {interval_start_utc: "2024-11-15 18:00:00", wind_production_mw: 5709.15, consumption_mw: 11000.0, production_mw: 9000.0}
+        - {interval_start_utc: "2024-11-15 18:15:00", wind_production_mw: 5709.15, consumption_mw: 11100.0, production_mw: null}
+
+  - name: test_int_weather_aligns_10_minute_observations
+    description: >
+      Observations at :00 and :10 fall in the first quarter-hour, :20 in the second; a null (NaN)
+      observation is left out of the average but its time still counts.
+    model: int_weather_15min
+    given:
+      - input: ref('stg_fmi__observations')
+        rows:
+          - {fmisid: 100968, parameter: t2m, observed_at_utc: "2025-01-10 06:00:00", observation_value: -10.0}
+          - {fmisid: 100968, parameter: t2m, observed_at_utc: "2025-01-10 06:10:00", observation_value: -11.0}
+          - {fmisid: 100968, parameter: ws_10min, observed_at_utc: "2025-01-10 06:00:00", observation_value: 4.0}
+          - {fmisid: 100968, parameter: ws_10min, observed_at_utc: "2025-01-10 06:10:00", observation_value: null}
+          - {fmisid: 100968, parameter: t2m, observed_at_utc: "2025-01-10 06:20:00", observation_value: -12.0}
+          - {fmisid: 100968, parameter: ws_10min, observed_at_utc: "2025-01-10 06:20:00", observation_value: 5.0}
+    expect:
+      rows:
+        - {fmisid: 100968, interval_start_utc: "2025-01-10 06:00:00", temperature_c: -10.5, wind_speed_ms: 4.0, observation_count: 2}
+        - {fmisid: 100968, interval_start_utc: "2025-01-10 06:15:00", temperature_c: -12.0, wind_speed_ms: 5.0, observation_count: 1}

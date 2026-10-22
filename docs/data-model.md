@@ -26,9 +26,9 @@ Duplicates are expected (overlapping fetch windows).
 | `stg_fingrid__wind_production`, `stg_fingrid__consumption`, `stg_fingrid__production` | `interval_start_utc` | typed, deduped keeping the latest `_ingested_at` (the newest interval of a fetch is often revised by the next one) |
 | `stg_entsoe__day_ahead_price` | `interval_start_utc`, `resolution_minutes` | the latest fetch of each delivery period, chosen as a whole (highest revision, then latest `_ingested_at`); `interval_start_utc` = period start + (position − 1) × resolution; omitted A03 positions still missing |
 | `stg_fmi__observations` | `fmisid`, `parameter`, `observed_at_utc` | `NaN` → null; deduped keeping the latest `_ingested_at` |
-| `int_price_15min` | 15 min | Omitted A03 positions forward-filled within each period first (about a third of periods have gaps); then 60-min prices expanded to four 15-min rows, 15-min prices as is |
-| `int_power_15min` | 15 min | Fingrid 15-min values joined on interval start (timestamps aligned to the interval start, see `docs/data-sources.md`); no averaging needed |
-| `int_weather_15min` | station × 15 min | 10-min values aligned to 15-min intervals (document the rule) |
+| `int_price_15min` | 15 min | Every position of each delivery period generated from the period length (23/24/25 h); omitted A03 positions forward-filled (`is_price_filled`); then 60-min prices expanded to four 15-min rows, 15-min prices as is; the 15-min price wins if both exist |
+| `int_power_15min` | 15 min | The three Fingrid datasets combined on interval start, null where one has a gap; records longer than 15 min split into quarter-hours with the same average power |
+| `int_weather_15min` | station × 15 min | Average of the 10-min observations with `interval_start ≤ observed_at < interval_start + 15 min` (two, then one, in turn); `NaN`s ignored; `observation_count` |
 
 ## Gold (dbt, `models/marts`) — star schema
 
