@@ -13,6 +13,9 @@
 | Log Analytics workspace | `log-<project>-<env>` | `log-energy-dev` |
 | Application Insights | `appi-<project>-<env>` | `appi-energy-dev` |
 | Databricks workspace | `dbw-<project>-<env>` | `dbw-energy-dev` |
+| Databricks managed resource group | `rg-<project>-<env>-dbw-managed` | `rg-energy-dev-dbw-managed` |
+| Databricks access connector | `dbac-<project>-<env>` | `dbac-energy-dev` |
+| ADLS containers | `landing` (raw files), `lake` (Unity Catalog managed storage) | |
 | Tags (all resources) | `project`, `env`, `owner`, `managed_by=terraform` | |
 | dbt models | `stg_<source>__<entity>`, `int_<entity>_<grain>`, `fct_…`, `dim_…` | `stg_entsoe__day_ahead_price` |
 | Columns | snake_case; UTC timestamps end in `_utc`; units in the name | `wind_production_mw`, `price_eur_mwh` |
