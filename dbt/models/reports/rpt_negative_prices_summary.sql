@@ -1,6 +1,5 @@
--- Report question 2: when does the price go negative, and what do those intervals have in common?
--- Negative-price intervals against zero and positive ones: how often, when (local hour, weekend,
--- month), and with how much wind and consumption.
+-- Report question 2: what do negative-price intervals have in common? Negative, zero and positive
+-- prices side by side: how often, with how much wind and consumption, and when (local time).
 with
 
 facts as (
@@ -23,7 +22,7 @@ joined as (
             when facts.price_eur_mwh = 0 then 'zero'
             else 'positive'
         end as price_band,
-        facts.price_eur_mwh,
+        cast(facts.price_eur_mwh as double) as price_eur_mwh,
         facts.wind_production_mw,
         facts.consumption_mw,
         facts.wind_production_mw / nullif(facts.consumption_mw, 0) as wind_share_of_consumption,
@@ -38,13 +37,13 @@ joined as (
 final as (
     select
         price_band,
-        count(*) as intervals,
-        round(count(*) / sum(count(*)) over () * 100, 2) as share_of_intervals_pct,
-        round(avg(price_eur_mwh), 2) as avg_price_eur_mwh,
-        round(avg(wind_production_mw)) as avg_wind_mw,
-        round(avg(consumption_mw)) as avg_consumption_mw,
-        round(avg(wind_share_of_consumption) * 100, 1) as avg_wind_share_pct,
-        round(avg(cast(is_weekend as int)) * 100, 1) as weekend_pct,
+        count(*) as interval_count,
+        cast(count(*) / sum(count(*)) over () as double) as share_of_intervals,
+        avg(price_eur_mwh) as avg_price_eur_mwh,
+        avg(wind_production_mw) as avg_wind_production_mw,
+        avg(consumption_mw) as avg_consumption_mw,
+        avg(wind_share_of_consumption) as avg_wind_share_of_consumption,
+        avg(cast(is_weekend as int)) as weekend_share,
         mode(hour_of_day) as most_common_local_hour,
         mode(month_number) as most_common_month
     from joined
@@ -52,4 +51,3 @@ final as (
 )
 
 select * from final
-order by avg_price_eur_mwh

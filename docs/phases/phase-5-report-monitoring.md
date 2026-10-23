@@ -108,6 +108,9 @@ the facts and dimensions (decision 1). They turn the `analyses/` queries into te
 - An **exposure** (`models/reports/_exposures.yml`) for the dashboard, so dbt's lineage shows which
   models it depends on and slim CI knows what a model change touches.
 - The analyses stay as they are (ad hoc), or are removed where a report model replaces them.
+  **Done (PR B1):** nine models instead of five, since a page often needs a model for its numbers
+  and one for its chart (e.g. `rpt_wind_price_fit` and `rpt_wind_price_bands`); every analysis was
+  replaced, so `dbt/analyses/` is gone.
 
 The dashboard `energy_report` (AI/BI, `databricks/resources/dashboards/energy_report.lv.json`):
 

@@ -1,6 +1,5 @@
--- Report question 4a: what do the daily and weekly price profiles look like?
--- Average price by local hour, on weekdays and at weekends, with each hour's price relative to the
--- day's average.
+-- Report question 4a: the daily and weekly price profiles. Average price per local hour on
+-- weekdays and at weekends, and each hour relative to its day type's average.
 with
 
 facts as (
@@ -20,7 +19,7 @@ joined as (
     select
         case when dates.is_weekend then 'weekend' else 'weekday' end as day_type,
         times.hour_of_day,
-        facts.price_eur_mwh
+        cast(facts.price_eur_mwh as double) as price_eur_mwh
     from facts
     inner join dates on facts.date_key = dates.date_key
     inner join times on facts.time_key = times.time_key
@@ -30,6 +29,7 @@ hourly as (
     select
         day_type,
         hour_of_day,
+        count(*) as interval_count,
         avg(price_eur_mwh) as avg_price_eur_mwh
     from joined
     group by day_type, hour_of_day
@@ -39,11 +39,11 @@ final as (
     select
         day_type,
         hour_of_day,
-        round(avg_price_eur_mwh, 2) as avg_price_eur_mwh,
-        round(avg_price_eur_mwh / avg(avg_price_eur_mwh) over (partition by day_type), 2)
-            as relative_to_daily_average
+        interval_count,
+        avg_price_eur_mwh,
+        avg_price_eur_mwh / avg(avg_price_eur_mwh) over (partition by day_type)
+            as relative_to_day_type_average
     from hourly
 )
 
 select * from final
-order by day_type, hour_of_day

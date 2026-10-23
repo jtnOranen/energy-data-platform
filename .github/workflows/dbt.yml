@@ -65,7 +65,7 @@ jobs:
 
       - name: sqlfluff lint
         if: env.IS_TRUSTED_SOURCE == 'true'
-        run: uv run sqlfluff lint models tests analyses
+        run: uv run sqlfluff lint models tests
 
       # The manifest of the newest main run that built one. dbt/ only changes through CI runs that
       # upload it, so that manifest describes what production runs. Missing (none yet, or expired
