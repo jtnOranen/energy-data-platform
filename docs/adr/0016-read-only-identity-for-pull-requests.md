@@ -29,11 +29,13 @@ Option 1: `gh-energy-data-platform-pr`, created by `bootstrap.sh` like the deplo
 ## Consequences
 
 - PR Terraform plans run with `-lock=false`: a reader can't take the state blob's lease. That also
-  ends PR plans failing on the lock while `main` applies. The plan is still a correct preview; only
-  `main`'s plan, made with the lock, is applied.
-- Refreshing some Unity Catalog objects (the storage credential in particular) needs more than
-  catalog-level read privileges. If they can't be granted without write rights, PR plans cover the
-  Azure modules only, and the full plan runs on `main` before every apply (phase 4 spec, step 0).
+  ends PR plans failing on the lock while `main` applies. Only `main`'s plan, made with the lock,
+  is applied.
+- PR plans also run with `-refresh=false`. Two reads need more than read rights: a SQL warehouse's
+  permissions (`CAN_MANAGE`, which could also change them) and the storage credential (a privilege
+  on it). Without refresh the plan compares configuration with state and reads nothing, so it
+  covers every module with read rights only. It doesn't show drift; `main` refreshes before every
+  apply and checks for an empty plan afterwards (phase 4 spec, step 0 item 1).
 - The PR principal can create schemas in the catalog, so dbt PR builds (`pr_<n>_*`) don't need the
   deploying identity; it owns those schemas and drops them when the PR closes. It can't write to
   `bronze`, `silver` or `gold`, which the deploying principal owns.
