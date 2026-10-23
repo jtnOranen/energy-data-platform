@@ -18,7 +18,8 @@ permissions:
 
 env:
   ARM_USE_OIDC: "true"
-  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  # Pull requests run as the read-only principal, main as the deploying one (ADR 0016).
+  ARM_CLIENT_ID: ${{ github.event_name == 'pull_request' && vars.AZURE_PR_CLIENT_ID || vars.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
   # The databricks provider reuses ARM_CLIENT_ID / ARM_TENANT_ID and the same federated
@@ -72,10 +73,12 @@ jobs:
 
       # continue-on-error so a failed plan still gets reported in the PR comment below;
       # the "Fail job if plan failed" step at the end is what actually fails the job.
+      # On PRs without the state lock: the read-only principal can't lease the state blob, and a
+      # PR plan is only a preview (main plans with the lock before applying). ADR 0016.
       - name: Terraform plan
         id: plan
         if: env.IS_TRUSTED_SOURCE == 'true'
-        run: terraform plan -no-color -input=false -out=tfplan
+        run: terraform plan -no-color -input=false -lock=${{ github.event_name != 'pull_request' }} -out=tfplan
         continue-on-error: true
 
       - name: Terraform show (plan as text)

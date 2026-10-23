@@ -25,7 +25,8 @@ env:
   # The Databricks CLI exchanges the GitHub OIDC token for an Entra ID token as the CI service
   # principal, with the same federated credentials as Terraform. No PAT or secret (phase 2 spec).
   DATABRICKS_AUTH_TYPE: github-oidc-azure
-  ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+  # Pull requests run as the read-only principal, main as the deploying one (ADR 0016).
+  ARM_CLIENT_ID: ${{ github.event_name == 'pull_request' && vars.AZURE_PR_CLIENT_ID || vars.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
   # Same fork-PR gate as terraform.yml: only this repository's own branches get the OIDC token.
   IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
