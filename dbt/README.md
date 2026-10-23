@@ -32,7 +32,30 @@ uv run dbt build                 # models + tests
 uv run dbt build -s staging      # one folder
 uv run dbt test --select test_type:unit   # unit tests only
 uv run dbt source freshness
-uv run sqlfluff lint models      # needs a login too: the dbt templater compiles the project
+uv run sqlfluff lint models tests analyses   # needs a login too: the templater compiles
+```
+
+## In production (the `dbt_build` job)
+
+The bundle (`databricks/resources/dbt_job.yml`) syncs this folder to the workspace and runs, daily at
+07:15 UTC as the CI service principal: `dbt deps`, `dbt build --target prod`,
+`dbt source freshness --target prod` (ADR 0014). To run it now, or after a change that needs a
+rebuild:
+
+```bash
+cd databricks
+databricks bundle run -t dev dbt_build
+# rebuild the incremental facts from silver (after changing their logic):
+databricks bundle run -t dev dbt_build --params build_flags=--full-refresh
+```
+
+## Report queries (`analyses/`)
+
+One query per report question (`docs/roadmap.md`). dbt compiles them but doesn't run them:
+
+```bash
+uv run dbt compile -s path:analyses
+# then run target/compiled/energy/analyses/<name>.sql in the SQL editor
 ```
 
 ## Targets

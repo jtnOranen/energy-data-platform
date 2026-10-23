@@ -1,10 +1,19 @@
-# Databricks Asset Bundle: the bronze load job (phase 2). Deployed by CI on pushes to main
-# (.github/workflows/databricks.yml), authenticating as the CI service principal with GitHub OIDC.
+# Databricks Asset Bundle: the bronze load job (phase 2) and the dbt job (phase 3). Deployed by CI on
+# pushes to main (.github/workflows/databricks.yml), authenticating as the CI service principal with
+# GitHub OIDC.
 bundle:
   name: energy
 
 include:
   - resources/*.yml
+
+# The dbt project lives at the repo root (dbt/), outside the bundle folder; sync it too so the dbt
+# task finds it in the workspace. Sync follows .gitignore, so dbt's target/ and dbt_packages/ stay
+# local.
+sync:
+  paths:
+    - .
+    - ../dbt
 
 artifacts:
   energy_bronze:

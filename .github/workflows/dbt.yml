@@ -73,4 +73,21 @@ jobs:
 
       - name: sqlfluff lint
         if: env.IS_TRUSTED_SOURCE == 'true'
-        run: uv run sqlfluff lint models
+        run: uv run sqlfluff lint models tests analyses
+
+      # The docs site (descriptions, lineage) as a downloadable artifact. --empty-catalog skips the
+      # warehouse's column statistics: CI builds no tables. Publishing the site is phase 6.
+      - name: dbt docs generate
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: uv run dbt docs generate --target ci --empty-catalog
+
+      - name: Upload dbt docs
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: |
+            dbt/target/index.html
+            dbt/target/manifest.json
+            dbt/target/catalog.json
+          retention-days: 30

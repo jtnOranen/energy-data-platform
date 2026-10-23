@@ -1,22 +1,28 @@
 # databricks
 
-Databricks Asset Bundle for the bronze load (phase 2): the job `bronze_load` reads new files from the
-ADLS `landing` container with Auto Loader and appends them to the `energy.bronze` tables. Serverless
-jobs compute (ADR 0011), every 6 hours at :30 UTC, one task per source. The tables and their columns are
-described in `docs/data-model.md` and the phase 2 spec.
+Databricks Asset Bundle for the platform's jobs:
+
+- `bronze_load` (phase 2) reads new files from the ADLS `landing` container with Auto Loader and
+  appends them to the `energy.bronze` tables. Serverless jobs compute (ADR 0011), every 6 hours at
+  :30 UTC, one task per source. The tables and their columns are described in `docs/data-model.md`
+  and the phase 2 spec.
+- `dbt_build` (phase 3) runs the dbt project in `../dbt` once a day at 07:15 UTC: silver and gold
+  (ADR 0014). See `dbt/README.md`.
 
 ```
-databricks.yml            bundle `energy`, target `dev` (host, root path, run_as the CI service principal)
+databricks.yml            bundle `energy`, target `dev` (host, root path, run_as the CI service
+                          principal); syncs ../dbt as well
 resources/bronze_job.yml  the job: schedule, serverless environment, one wheel task per source
 resources/bronze_rebuild_job.yml  manual job: drop a source's tables and checkpoints, reload all
+resources/dbt_job.yml     the dbt job: one dbt task on serverless, the project's own profiles.yml
 src/energy_bronze/        sources.py (table definitions), metadata.py, load.py (entry point)
 tests/                    local Spark against the ingestion's recorded fixtures
 ```
 
 ## Deploy
 
-CI deploys on every push to `main` that touches `databricks/` (`.github/workflows/databricks.yml`),
-as the CI service principal with GitHub OIDC. Don't deploy from your own machine: the bundle's root
+CI deploys on every push to `main` that touches `databricks/` or `dbt/`
+(`.github/workflows/databricks.yml`), as the CI service principal with GitHub OIDC. Don't deploy from your own machine: the bundle's root
 path and `run_as` are the service principal's.
 
 Validate locally (as yourself, through `az login`):
