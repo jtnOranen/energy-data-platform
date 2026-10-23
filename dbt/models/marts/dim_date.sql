@@ -1,5 +1,7 @@
 -- One row per local Finnish date: the report asks about local days, weekdays and seasons. The
--- range is fixed so the dimension doesn't depend on what the facts contain yet.
+-- range is fixed so the dimension doesn't depend on what the facts contain yet. Month and day
+-- names are English whatever the warehouse's locale (Spark's date_format); the report layer
+-- translates them if it needs Finnish.
 with
 
 days as (

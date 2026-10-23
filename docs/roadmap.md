@@ -18,27 +18,22 @@ Detailed specs live in `docs/phases/`. Write the next phase's spec before starti
 
 Known gaps, recorded when found so the phase that owns them picks them up.
 
-**Phase 3 (dbt)**
-- Source freshness on bronze must allow for the 6-hourly bronze load (e.g. warn 8 h, error 24 h).
-- Staging checks on ENTSO-E: `in_domain`, `currency_unit`, `price_measure_unit`, `curve_type` are all
-  `10YFI-1--------U` / EUR / MWH / A03 today; test it rather than assume it.
+Done: phase 3's items (bronze freshness thresholds, ENTSO-E staging checks) and phase 4's CI/CD
+hardening from the 2026-10-22 security review (read-only PR identity, SHA-pinned actions with
+Dependabot, `dev` deployable only from `main`).
 
-**Phase 4 (CI/CD hardening)** — found in a security review on 2026-10-22:
-- **Read-only identity for pull requests.** PR runs use the same service principal as `main`
-  (Contributor on `rg-energy-dev`), so a workflow edited on a branch could change infrastructure.
-  Only the owner can push today, so the risk is theoretical. Fix: a second service principal with
-  `Reader` (+ state blob read and Databricks read) for the `pull_request` federated credential; the
-  current one keeps only the `main` and `environment:dev` credentials.
-- **Pin third-party actions to commit SHAs** instead of tags, so a compromised action release can't
-  move a tag under us (Dependabot can keep the SHAs current).
-- **Environment protection on `dev`**: limit deployments to `main` (and optionally a required
-  reviewer), so even a misconfigured workflow can't deploy from a branch.
-- **Plan comments are public** (public repo). Sensitive variables are already hidden; keep checking
-  new ones are marked `sensitive`.
+**Standing rule (public repo):** Terraform plan comments on PRs are public. Sensitive variables are
+hidden; mark every new one `sensitive`.
+
+**Phase 5 (monitoring)**
+- Alert when a scheduled run fails (`bronze_load`, `dbt_build`, the ingestion functions) and when a
+  `main` deploy fails. Today only the job pages show it; ENTSO-E's outage on 2026-10-22 (two failed
+  function runs, HTTP 599) was found by hand.
 
 **Phase 6 (polish)**
 - An orphaned workspace catalog from the deleted hybrid workspace may remain in the metastore
   (ADR 0013); clean it up from the account console.
+- Publish the dbt docs site (CI already builds it as an artifact).
 
 ## Report questions (phase 5)
 
