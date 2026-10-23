@@ -84,13 +84,20 @@ Checked before or in the PR that needs them; outcomes recorded here.
    apply on `main`.
 3. **Required check from a reusable-workflow setup:** the name GitHub reports for the gate job
    (e.g. `CI / all checks passed`), and that a gate depending on skipped jobs still reports
-   success.
+   success. **Confirmed 2026-10-23** (PR #32): the check is reported as the job name,
+   `all checks passed`; branch protection requires that context, bound to the GitHub Actions app
+   (ID 15368). With `if: always()` it reports success when the jobs it needs were skipped.
 4. **Downloading the production dbt manifest** from the latest successful `main` run of the CI
    workflow (`actions/download-artifact` with `run-id` and `github-token`, or `gh run download`),
    and that `dbt build --select state:modified+ --defer --state <dir>` resolves unmodified models
-   to `energy.silver`/`energy.gold`.
+   to `energy.silver`/`energy.gold`. **Confirmed 2026-10-23:** the artifacts API (newest
+   unexpired `dbt-prod-manifest` from `main`) plus `gh run download`, with `actions: read`. PR #36
+   (no model changes) found the manifest and built nothing; PR #39 (a comment in `dim_date`) built
+   `dim_date` and the two facts (their contracts' foreign keys reference it) with their tests, 16
+   nodes of 85, reading everything else from production.
 5. **Dependabot** supports both ecosystems we need: `github-actions` (keeps SHA pins current) and
-   `uv` (`uv.lock`).
+   `uv` (`uv.lock`). **Confirmed 2026-10-23:** its first run opened one grouped PR for each (#37,
+   #38).
 
 ## Deliverables
 
@@ -226,17 +233,36 @@ In `dbt.yml`, for PRs from this repository:
 
 ## Acceptance criteria
 
-- [ ] Step 0 items are resolved and recorded here.
-- [ ] A PR with a deliberately failing check (a ruff error, a failing dbt test) **cannot be merged**;
-      a docs-only PR can, without waiting on skipped checks.
-- [ ] A PR commit containing a fake secret is caught by gitleaks in CI.
-- [ ] PR jobs run as `gh-energy-data-platform-pr`; that principal cannot apply, deploy or write to
-      `silver`/`gold` (tried and recorded).
-- [ ] A dbt PR builds only `state:modified+` in `pr_<n>_*` schemas with unit and data tests, and
-      closing the PR drops those schemas.
-- [ ] A merge touching `infra/` and `databricks/` applies Terraform before deploying the bundle.
-- [ ] Every third-party action is pinned to a SHA; Dependabot opens its first grouped PR.
-- [ ] `terraform plan` after apply shows no changes.
+Checked 2026-10-23 (PRs #29–#41). Probe PRs (#33, #34, #40) were closed without merging.
+
+- [x] Step 0 items are resolved and recorded here.
+- [x] A PR with a deliberately failing check **cannot be merged**: #33 added a failing pytest test;
+      the gate failed and `gh pr merge` was refused ("the base branch policy prohibits the merge",
+      `mergeStateStatus: BLOCKED`), admins included (`enforce_admins`). A docs-only PR can: this
+      one (#41) skipped every part's checks and the gate passed. (A lint error was not used for
+      the probe: the local pre-commit hooks stop it before it can be committed.)
+- [x] A PR commit containing a fake secret is caught by gitleaks in CI: #34 committed a random
+      API key with `--no-verify` (owner's request, to bypass the local hook that had blocked it);
+      CI's gitleaks job reported `generic-api-key` (secret redacted in the log) and the merge was
+      blocked.
+- [x] PR jobs run as `gh-energy-data-platform-pr`, and it can't change anything: #40 logged in as it
+      and tried to tag `rg-energy-dev` (`AuthorizationFailed`), create a container in the ADLS
+      account (HTTP 403; the account has no network rules), create tables in `silver` and `gold`,
+      insert into `bronze` and drop a `silver` view (all `PERMISSION_DENIED`). It can't deploy
+      either: the `dev` environment takes deployments only from `main`, and the deploying app no
+      longer has a `pull_request` credential.
+- [x] A dbt PR builds only `state:modified+` in `pr_<n>_*` schemas with unit and data tests (#39:
+      16 of 85 nodes in `pr_39_gold`), and closing the PR drops those schemas (#35's
+      `pr_35_silver`/`pr_35_gold` dropped by `dbt-pr-cleanup.yml` on merge; checked in
+      `information_schema`).
+- [x] A merge touching `infra/` and `databricks/` applies Terraform before deploying the bundle: every
+      `main` run since #32 that changed all parts ran `terraform / apply`, then `ingestion /
+      deploy`, then `databricks / bundle deploy`, each waiting for the previous.
+- [x] Every third-party action is pinned to a SHA (#36, 31 references; `azure/login` unified on
+      v3.1.0); Dependabot opened its first grouped PRs (#37 merged: six actions to new majors, all
+      checks and the following `main` deploy green; #38 closed: pyspark stays on 4.1 to match
+      serverless environment 6, now ignored in `dependabot.yml`).
+- [x] `terraform plan` after apply shows no changes (the apply job's check, on every `main` run).
 
 ## Interview notes to capture (in README or ADRs)
 
