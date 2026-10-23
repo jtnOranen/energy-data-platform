@@ -1,0 +1,48 @@
+name: dbt PR cleanup
+
+# Drops a pull request's dbt schemas (pr_<number>_silver, pr_<number>_gold) when it is closed,
+# merged or not (phase 4 spec, deliverable C). Runs as the read-only principal, which created and
+# owns them. Not part of the CI gate: nothing to check, only to tidy up.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  drop-schemas:
+    name: drop PR schemas
+    # Fork PRs never got schemas (no OIDC token), so there is nothing to drop for them.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      DATABRICKS_HOST: https://adb-7405610438268005.5.azuredatabricks.net
+      WAREHOUSE_ID: f5e7a914313e58c9 # Terraform output databricks_sql_warehouse_id
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_PR_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # The SQL Statement Execution API directly: two statements don't need a dbt install.
+      - name: Drop schemas
+        run: |
+          token=$(az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d --query accessToken -o tsv)
+          echo "::add-mask::$token"
+          for layer in silver gold; do
+            schema="pr_${PR_NUMBER}_${layer}"
+            body=$(jq -n --arg wh "$WAREHOUSE_ID" --arg s "drop schema if exists energy.${schema} cascade" \
+              '{warehouse_id: $wh, statement: $s, wait_timeout: "50s"}')
+            state=$(curl -sSf -X POST "$DATABRICKS_HOST/api/2.0/sql/statements" \
+              -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+              -d "$body" | jq -r '.status.state')
+            echo "$schema: $state"
+            [[ "$state" == "SUCCEEDED" ]] || exit 1
+          done

@@ -12,16 +12,18 @@ env:
   # Same fork-PR gate as terraform.yml: only this repository's own branches get the OIDC token.
   IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
-# Parse and lint only in phase 3 (phase 3 spec, decision 3): unit and data tests run in the job and
-# locally; slim CI in pr_<n> schemas comes in phase 4. The dbt templater compiles the project, which
-# opens a warehouse connection (step 0 item 8), so linting needs a token; it runs no models.
+# On every run: parse and lint (the dbt templater compiles the project, which opens a warehouse
+# connection, phase 3 spec step 0 item 8). On pull requests: slim CI, building what the PR changed
+# in its own schemas (phase 4 spec, deliverable C). On main: the production manifest that slim CI
+# compares against.
 jobs:
   check:
-    name: dbt parse, sqlfluff
+    name: dbt parse, sqlfluff, PR build
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
+      actions: read # download the production manifest from an earlier run
     defaults:
       run:
         working-directory: dbt
@@ -53,7 +55,7 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       # An Entra ID token for the Azure Databricks application (fixed app ID), valid about an hour.
-      # No PAT or secret (step 0 item 5).
+      # No PAT or secret (phase 3 spec, step 0 item 5).
       - name: Databricks token
         if: env.IS_TRUSTED_SOURCE == 'true'
         run: |
@@ -65,8 +67,61 @@ jobs:
         if: env.IS_TRUSTED_SOURCE == 'true'
         run: uv run sqlfluff lint models tests analyses
 
+      # The manifest of the newest main run that built one. dbt/ only changes through CI runs that
+      # upload it, so that manifest describes what production runs. Missing (none yet, or expired
+      # after 90 days without dbt changes): the PR builds everything in its window instead.
+      - name: Download production manifest
+        id: manifest
+        if: github.event_name == 'pull_request' && env.IS_TRUSTED_SOURCE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api "repos/${{ github.repository }}/actions/artifacts?name=dbt-prod-manifest&per_page=100" \
+            --jq '[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == "main")]
+                  | sort_by(.created_at) | last | .workflow_run.id // empty')
+          if [[ -n "$run_id" ]]; then
+            gh run download "$run_id" --repo "${{ github.repository }}" --name dbt-prod-manifest --dir prod-state
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "Production manifest from run $run_id"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No production manifest; building every model in the PR window."
+          fi
+
+      # Slim CI as the read-only principal: build only what the PR changed and what depends on it
+      # (state:modified+), reading every unchanged model from production (--defer), into
+      # pr_<number>_silver / pr_<number>_gold. The incremental facts start 30 days back (phase 4
+      # spec, decision 3), so a PR build takes seconds of warehouse time.
+      - name: dbt build (PR schemas)
+        if: github.event_name == 'pull_request' && env.IS_TRUSTED_SOURCE == 'true'
+        env:
+          DBT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          HAS_STATE: ${{ steps.manifest.outputs.found }}
+        run: |
+          window_start=$(date -u -d '30 days ago' +%Y-%m-%d)
+          vars="{history_start_utc: '${window_start} 00:00:00'}"
+          if [[ "$HAS_STATE" == "true" ]]; then
+            uv run dbt build --target pr --select state:modified+ --defer --state prod-state --vars "$vars"
+          else
+            uv run dbt build --target pr --vars "$vars"
+          fi
+
+      # What slim CI compares against: production's manifest (target prod, so it names the silver
+      # and gold relations --defer reads from). Parsing needs no warehouse connection.
+      - name: Production manifest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: uv run dbt parse --target prod --target-path prod-target
+
+      - name: Upload production manifest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-prod-manifest
+          path: dbt/prod-target/manifest.json
+          retention-days: 90
+
       # The docs site (descriptions, lineage) as a downloadable artifact. --empty-catalog skips the
-      # warehouse's column statistics: CI builds no tables. Publishing the site is phase 6.
+      # warehouse's column statistics. Publishing the site is phase 6.
       - name: dbt docs generate
         if: env.IS_TRUSTED_SOURCE == 'true'
         run: uv run dbt docs generate --target ci --empty-catalog

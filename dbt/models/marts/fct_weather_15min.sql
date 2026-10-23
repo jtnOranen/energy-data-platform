@@ -21,6 +21,10 @@ weather as (
                     )
                 from {{ this }}
             )
+    {%- else -%}
+        -- A full build starts where the power fact's spine does (history_start_utc), so a PR
+        -- build with a short window (phase 4) stays short for both facts.
+        where interval_start_utc >= cast('{{ var("history_start_utc") }}' as timestamp)
     {%- endif %}
 ),
 

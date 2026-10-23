@@ -161,6 +161,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      actions: read
     uses: ./.github/workflows/dbt.yml
 
   # The only required status check (branch protection, infra/bootstrap/github-settings.sh). Runs
