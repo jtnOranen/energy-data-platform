@@ -1,0 +1,227 @@
+# Phase 4 — CI/CD
+
+## Goal
+
+Every pull request runs the checks for the parts it touches, `main` accepts nothing without them
+being green, and a push to `main` deploys every part in a fixed order. Pull requests run with an
+identity that can read the platform but not change it, and dbt changes are built and tested in a
+schema of their own before they merge.
+
+Done when (from `docs/roadmap.md`): **nothing reaches `main` without green checks.**
+
+## Where we start (checked 2026-10-23)
+
+Phases 1–3 already pulled most per-part CI forward. What exists:
+
+| Workflow | On PRs | On `main` |
+| --- | --- | --- |
+| `terraform.yml` (`infra/**`) | fmt, validate, plan, plan as PR comment | plan, then apply in `dev` |
+| `ingestion.yml` (`ingestion/**`) | ruff, pytest | the same, then deploy the function |
+| `databricks.yml` (`databricks/**`, `dbt/**`) | ruff, pytest with Spark, bundle validate | the same, then bundle deploy |
+| `dbt.yml` (`dbt/**`) | dbt parse, sqlfluff, docs artifact | the same |
+
+The gaps:
+
+1. **No required status checks.** `main` requires a pull request, but its branch protection has
+   `required_status_checks: null`: a red PR can be merged. The phase's goal isn't met today.
+2. **Path filters and required checks don't mix.** A workflow skipped by its `paths` filter
+   reports nothing, so a check required by name waits forever on PRs that don't touch that part.
+   Making the current checks required as they are would block every docs-only PR.
+3. **The pre-commit hooks run only locally.** gitleaks, terraform fmt/validate and ruff are in
+   `.pre-commit-config.yaml`, but a commit made without the hooks installed reaches the PR
+   unchecked. For a public repository, secret scanning should not depend on a local setup.
+4. **PRs use the deploying identity.** The `pull_request` federated credential belongs to the same
+   service principal as `main` (Contributor on `rg-energy-dev`, owner of the Unity Catalog
+   objects), so a workflow edited on a branch could change infrastructure (roadmap backlog).
+5. **Third-party actions are pinned to tags**, which a compromised release can move (backlog).
+6. **The `dev` environment has no protection rules** (backlog): any branch's workflow could deploy.
+7. **dbt changes aren't built before merging** (phase 3, decision 3): parse and lint only, so a
+   wrong model or failing test is found by the 07:15 production run.
+8. **Deploys on `main` run in parallel and unordered.** A PR touching `infra/` and `databricks/`
+   starts the apply and the bundle deploy at the same time, although the bundle depends on what
+   Terraform creates. And PR plans collide with `main`'s apply on the state lock (a known gotcha).
+
+## Out of scope
+
+Alerting on failed runs and the pipeline-health page (phase 5). A second environment (one `dev`,
+`docs/architecture.md`). Publishing the dbt docs site (phase 6). Changing what the checks check:
+this phase is about running them reliably and safely, not adding new kinds of tests.
+
+## Manual prerequisites (owner)
+
+1. Re-run `infra/bootstrap/bootstrap.sh` after PR A's change, before merging it: it creates the
+   read-only service principal and moves the `pull_request` federated credential to it.
+2. Apply the branch protection and environment settings (the script in PR A does it with `gh`;
+   the owner runs it, since repository settings need the owner's GitHub rights).
+
+## Step 0: verify
+
+Checked before or in the PR that needs them; outcomes recorded here.
+
+1. **What a read-only identity can plan.** `terraform plan` refreshes every resource. With
+   `Reader` on `rg-energy-dev` plus data roles, does it get through the azurerm resources
+   (storage containers through Entra ID, since Shared Key is off; Key Vault; the function app),
+   and through the `databricks` provider's Unity Catalog objects? The owner's local plan already
+   showed that reading the storage credential needs more than catalog-level privileges. Find the
+   least set of Unity Catalog privileges (or a metastore-level role) that lets a non-owner refresh
+   the storage credential, external locations, catalog, schemas, volume, grants and the warehouse,
+   or decide to plan the Databricks modules only on `main` (fallback, see decision 2).
+2. **State lock with read-only access:** plans on PRs use `-lock=false` (a read-only identity
+   can't take the blob lease). Confirm the azurerm backend reads state with only
+   `Storage Blob Data Reader`, and that this also ends the PR-plan vs `main`-apply lock collisions.
+3. **Required check from a reusable-workflow setup:** the name GitHub reports for the gate job
+   (e.g. `CI / all checks passed`), and that a gate depending on skipped jobs still reports
+   success.
+4. **Downloading the production dbt manifest** from the latest successful `main` run of the CI
+   workflow (`actions/download-artifact` with `run-id` and `github-token`, or `gh run download`),
+   and that `dbt build --select state:modified+ --defer --state <dir>` resolves unmodified models
+   to `energy.silver`/`energy.gold`.
+5. **Dependabot** supports both ecosystems we need: `github-actions` (keeps SHA pins current) and
+   `uv` (`uv.lock`).
+
+## Deliverables
+
+Delivered as small PRs in this order: (A) read-only PR identity and repository settings,
+(B) one CI workflow with a single required gate, (C) dbt PR schemas (slim CI), (D) supply-chain
+hardening (SHA pins, Dependabot), (E) docs.
+
+### A. Read-only identity for pull requests and repository settings
+
+`infra/bootstrap/bootstrap.sh`:
+
+- A second app registration and service principal **`gh-energy-data-platform-pr`**. The
+  `pull_request` federated credential moves to it; the deploying principal keeps only the `main`
+  and `environment:dev` credentials.
+- Its Azure roles: `Reader` on `rg-energy-dev`, `Storage Blob Data Reader` on the state container
+  and on `landing`/`lake` (plan refreshes container properties through Entra ID), `Key Vault
+  Reader` (metadata only, no secret values).
+- Added to the Databricks workspace as a regular user (not an admin) through SCIM, like the
+  deploying principal.
+- New repository variable `AZURE_PR_CLIENT_ID`; PR jobs use it, `main` jobs keep
+  `AZURE_CLIENT_ID`.
+
+Terraform (`modules/unity_catalog`, `modules/sql_warehouse`), for the PR principal:
+
+- `USE_CATALOG`, `USE_SCHEMA`, `SELECT` on `energy` (read bronze, silver and gold, for plans and
+  for dbt deferral) and `CREATE_SCHEMA` on the catalog (its own `pr_<n>_*` schemas, decision 3).
+- Whatever step 0 item 1 shows is needed to refresh the storage credential and external
+  locations, if it can be granted without write rights.
+- `CAN_USE` on the warehouse.
+
+Repository settings, applied by a script the owner runs (`infra/bootstrap/github-settings.sh`,
+idempotent, `gh api`; not Terraform, which would need a GitHub token as a secret):
+
+- Branch protection on `main`: the gate check from B is **required**, branches must be up to date
+  before merging, `enforce_admins` stays on (the owner can't bypass it either), no force pushes.
+- Squash merge only, delete branches after merge.
+- Environment `dev`: deployments only from `main` (deployment branch policy), no required
+  reviewer (decision 4).
+
+### B. One CI workflow with a single required gate
+
+`.github/workflows/ci.yml` replaces the four entry points; the per-part workflows become
+**reusable workflows** (`on: workflow_call`) with their jobs unchanged:
+
+```
+ci.yml
+├── changes        which parts changed (paths filter on the PR's diff; on main: the pushed commit)
+├── precommit      always: pre-commit run --all-files (gitleaks, fmt, ruff, ...)
+├── terraform      if infra changed      → terraform.yml   (PR: plan -lock=false as the PR SP)
+├── ingestion      if ingestion changed  → ingestion.yml
+├── databricks     if databricks or dbt changed → databricks.yml
+├── dbt            if dbt changed        → dbt.yml          (PR: slim CI, part C)
+└── all checks passed   always; fails if any needed job failed or was cancelled
+```
+
+- **The gate is the only required check.** It runs on every PR (`if: always()`), so docs-only PRs
+  are mergeable, and it fails if any job it depends on failed; skipped jobs count as passed.
+- On `main`, deploys run **in order**: Terraform apply, then the function deploy, then the bundle
+  deploy, each only if its part changed (or, for the bundle, if Terraform changed something it
+  depends on). One `concurrency` group for `main` deploys, so two merges can't deploy at once.
+- PR jobs authenticate as the read-only principal (A); `main` jobs as the deploying one. The
+  fork-PR gate (`IS_TRUSTED_SOURCE`) stays: fork PRs get the checks that need no Azure.
+- `precommit` runs the same hooks as local commits (one source of truth), with gitleaks over the
+  PR's commits, so a secret committed without hooks still fails the PR.
+
+### C. dbt in pull-request schemas (slim CI)
+
+In `dbt.yml`, for PRs from this repository:
+
+- Download the production manifest: on `main`, the CI uploads `dbt parse --target prod`'s
+  `manifest.json` as an artifact; PRs fetch it from the latest successful `main` run (step 0
+  item 4).
+- `dbt build --target pr --select state:modified+ --defer --state prod-manifest/`, as the PR
+  principal, into **`pr_<number>_silver` / `pr_<number>_gold`** (the schema macro already
+  prefixes every non-prod target). Unmodified upstream models are read from production (`--defer`),
+  so a PR builds only what it changed and what depends on it, and its unit tests and data tests run
+  against real data.
+- New target `pr` in `profiles.yml`: token from OIDC like `ci`, `schema` from the PR number.
+- A small data window (decision 3): `--vars` limits the facts to the last 30 days, so a PR that
+  touches `fct_power_15min` doesn't rebuild 2024 onwards.
+- **Cleanup:** a workflow on `pull_request: closed` drops `pr_<number>_silver` and
+  `pr_<number>_gold` (`DROP SCHEMA … CASCADE`) as the PR principal, which owns them.
+
+### D. Supply-chain hardening
+
+- Every third-party action pinned to a full commit SHA, with the version in a comment
+  (`uses: actions/checkout@<sha> # v4.2.2`).
+- `.github/dependabot.yml`: `github-actions` and `uv`, weekly, grouped into one PR per ecosystem,
+  so the pins stay current without a stream of PRs.
+- Workflow-level `permissions: contents: read`, widened per job only where needed (already the
+  pattern; checked for every job).
+
+### E. Docs
+
+- ADR 0015: one CI entry point with a single required gate check (why not required checks per
+  workflow, why not run everything on every PR).
+- ADR 0016: a read-only identity for pull requests (what it can and can't do, and the plan
+  limitations it brings).
+- `docs/architecture.md` (security model, environments), `CLAUDE.md` (the local-plan note, the
+  state-lock gotcha that `-lock=false` retires), `docs/roadmap.md` backlog (phase 4 items done),
+  README badge for the CI workflow.
+
+## Decisions (open, for the owner)
+
+1. **How the required check works.** (a) **One `ci.yml` with reusable workflows and a gate job**
+   that is the only required check: change detection decides what runs, and the gate always
+   reports. (b) Drop the path filters and require every workflow's checks: simple, but every PR,
+   even docs-only, runs Spark tests, a Terraform plan and Azure logins (several minutes and
+   warehouse time). (c) Keep path filters and require nothing: what we have, which fails the
+   phase's goal. **Recommendation: (a)**; it also gives `main` an ordered deploy.
+2. **Read-only identity for PRs now.** (a) **Now**, in PR A, with step 0 item 1 deciding the exact
+   grants; if the Databricks objects can't be refreshed without write rights, PR plans target the
+   Azure modules only and the full plan runs on `main` before the apply (which already happens).
+   (b) Keep one identity and rely on branch protection plus environment rules. **Recommendation:
+   (a)**: it closes the one real hole in the security model, and explaining it is worth the
+   interview time.
+3. **Data in dbt PR builds.** (a) **The last 30 days** for the incremental facts (`--vars`),
+   everything else as is: a PR build takes seconds of warehouse time. (b) Full history: the
+   closest to production, but a PR touching a fact rebuilds 2024 onwards (about 20 seconds now,
+   growing). **Recommendation: (a)**; the full rebuild still happens in production, and the
+   singular tests work on any window of whole days.
+4. **Protection on the `dev` environment.** (a) **Deployments from `main` only.** (b) Also a
+   required reviewer: with one owner, every merge would wait for the owner to approve their own
+   deployment. **Recommendation: (a)**; the review already happens on the PR.
+
+## Acceptance criteria
+
+- [ ] Step 0 items are resolved and recorded here.
+- [ ] A PR with a deliberately failing check (a ruff error, a failing dbt test) **cannot be merged**;
+      a docs-only PR can, without waiting on skipped checks.
+- [ ] A PR commit containing a fake secret is caught by gitleaks in CI.
+- [ ] PR jobs run as `gh-energy-data-platform-pr`; that principal cannot apply, deploy or write to
+      `silver`/`gold` (tried and recorded).
+- [ ] A dbt PR builds only `state:modified+` in `pr_<n>_*` schemas with unit and data tests, and
+      closing the PR drops those schemas.
+- [ ] A merge touching `infra/` and `databricks/` applies Terraform before deploying the bundle.
+- [ ] Every third-party action is pinned to a SHA; Dependabot opens its first grouped PR.
+- [ ] `terraform plan` after apply shows no changes.
+
+## Interview notes to capture (in README or ADRs)
+
+- Why a single gate check instead of requiring each workflow, and how path filters break required
+  checks.
+- What the read-only PR identity can and can't do, and why plans run with `-lock=false`.
+- How slim CI with `state:modified+` and `--defer` builds only what changed, against production.
+- Why SHA pins (and Dependabot to keep them current) instead of tags.
+- Why the repository settings are a `gh` script and not Terraform.
