@@ -172,36 +172,32 @@ In `dbt.yml`, for PRs from this repository:
 
 ### E. Docs
 
-- ADR 0015: one CI entry point with a single required gate check (why not required checks per
+- ADR 0015 (written with this spec): one CI entry point with a single required gate check (why not required checks per
   workflow, why not run everything on every PR).
-- ADR 0016: a read-only identity for pull requests (what it can and can't do, and the plan
+- ADR 0016 (written with this spec): a read-only identity for pull requests (what it can and can't do, and the plan
   limitations it brings).
 - `docs/architecture.md` (security model, environments), `CLAUDE.md` (the local-plan note, the
   state-lock gotcha that `-lock=false` retires), `docs/roadmap.md` backlog (phase 4 items done),
   README badge for the CI workflow.
 
-## Decisions (open, for the owner)
+## Decisions (made by the owner on 2026-10-23)
 
-1. **How the required check works.** (a) **One `ci.yml` with reusable workflows and a gate job**
-   that is the only required check: change detection decides what runs, and the gate always
-   reports. (b) Drop the path filters and require every workflow's checks: simple, but every PR,
-   even docs-only, runs Spark tests, a Terraform plan and Azure logins (several minutes and
-   warehouse time). (c) Keep path filters and require nothing: what we have, which fails the
-   phase's goal. **Recommendation: (a)**; it also gives `main` an ordered deploy.
-2. **Read-only identity for PRs now.** (a) **Now**, in PR A, with step 0 item 1 deciding the exact
-   grants; if the Databricks objects can't be refreshed without write rights, PR plans target the
-   Azure modules only and the full plan runs on `main` before the apply (which already happens).
-   (b) Keep one identity and rely on branch protection plus environment rules. **Recommendation:
-   (a)**: it closes the one real hole in the security model, and explaining it is worth the
-   interview time.
-3. **Data in dbt PR builds.** (a) **The last 30 days** for the incremental facts (`--vars`),
-   everything else as is: a PR build takes seconds of warehouse time. (b) Full history: the
-   closest to production, but a PR touching a fact rebuilds 2024 onwards (about 20 seconds now,
-   growing). **Recommendation: (a)**; the full rebuild still happens in production, and the
-   singular tests work on any window of whole days.
-4. **Protection on the `dev` environment.** (a) **Deployments from `main` only.** (b) Also a
-   required reviewer: with one owner, every merge would wait for the owner to approve their own
-   deployment. **Recommendation: (a)**; the review already happens on the PR.
+1. **One `ci.yml` with reusable workflows and a gate job** that is the only required check:
+   change detection decides what runs, and the gate always reports, so docs-only PRs stay
+   mergeable. Rejected: dropping the path filters and requiring every workflow (every PR, even
+   docs-only, would run Spark tests, a Terraform plan and Azure logins), and requiring nothing
+   (today's state, which fails the phase's goal). It also gives `main` an ordered deploy. See
+   ADR 0015.
+2. **A read-only identity for PRs now**, in PR A, with step 0 item 1 deciding the exact grants. If
+   the Databricks objects can't be refreshed without write rights, PR plans target the Azure
+   modules only and the full plan runs on `main` before the apply (which already happens). It
+   closes the one real hole in the security model. See ADR 0016.
+3. **dbt PR builds use the last 30 days** for the incremental facts (`--vars`), everything else as
+   is, so a PR build takes seconds of warehouse time. The full rebuild still happens in
+   production, and the singular tests work on any window of whole days.
+4. **The `dev` environment accepts deployments from `main` only**, with no required reviewer: with
+   one owner, a reviewer rule would only make the owner approve their own deployment after the PR
+   was already reviewed.
 
 ## Acceptance criteria
 
