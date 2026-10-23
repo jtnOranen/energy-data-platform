@@ -1,0 +1,27 @@
+# Keeps the SHA-pinned actions and the uv lock current (phase 4 spec, deliverable D). Weekly, one
+# grouped PR per ecosystem, so updates arrive as two reviewable PRs instead of a stream. Dependabot
+# PRs run CI as the read-only principal like any other PR (ADR 0016), so a compromised action
+# version can't reach the deploying identity before it is reviewed.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore(ci)
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore(deps)
