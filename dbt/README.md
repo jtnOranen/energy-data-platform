@@ -49,6 +49,20 @@ uv run sqlfluff lint models      # needs a login too: the dbt templater compiles
   per whole delivery period). Views in `silver`.
 - `models/intermediate/`: everything aligned to 15-minute intervals (price fill and expansion,
   Fingrid combined, FMI averaged). Views in `silver`, unit tests in `_intermediate.yml`.
-- `tests/`: singular data tests (each delivery period yields one price per quarter-hour).
+- `models/marts/`: the star schema in `gold`, contracts enforced. The two facts are incremental
+  (merge, last `lookback_days` = 3 rebuilt each run); `fct_power_15min` comes from a time spine.
+- `seeds/weather_stations.csv`: the four FMI stations (names and coordinates from FMI's metadata).
+  Edit a row to change a station; `snapshots/weather_station_snapshot.yml` keeps the history.
+- `tests/`: singular data tests (each delivery period yields one price per quarter-hour; every
+  complete UTC day has 96 rows in the power fact).
 - `macros/generate_schema_name.sql`: production names only for `prod`.
+- `macros/local_time_keys.sql`: `date_key`/`time_key` in Finnish local time, one rule for both facts.
 - `.sqlfluff`: dbt templater, Databricks dialect, lowercase keywords.
+
+## Rebuild
+
+The facts are incremental. After changing their logic, or to reload the whole history:
+
+```bash
+uv run dbt build -s marts --full-refresh
+```

@@ -2,8 +2,8 @@ name: energy
 version: "1.0.0"
 profile: energy
 
-# Silver holds staging (and, later, intermediate models, seeds and the snapshot); gold the star
-# schema. Terraform creates both schemas; generate_schema_name decides the real name per target.
+# Silver holds staging, intermediate, the seed and the snapshot; gold the star schema. Terraform
+# creates both schemas; generate_schema_name decides the real name per target.
 models:
   energy:
     staging:
@@ -12,9 +12,22 @@ models:
     intermediate:
       +schema: silver
       +materialized: view
+    marts:
+      +schema: gold
+      +materialized: table
+
+seeds:
+  energy:
+    +schema: silver
 
 vars:
   # SDAC harmonised clearing price limits (phase 3 spec, step 0 item 7). They move automatically
   # after extreme prices, so the range test only warns.
   price_min_eur_mwh: -600
   price_max_eur_mwh: 4000
+  # The facts start where the backfill starts; dim_date covers the history and a few years ahead.
+  history_start_utc: "2024-01-01 00:00:00"
+  dim_date_start: "2024-01-01"
+  dim_date_end: "2030-12-31"
+  # Incremental facts rebuild this many days back on each run: more than the 48-hour fetch overlap.
+  lookback_days: 3

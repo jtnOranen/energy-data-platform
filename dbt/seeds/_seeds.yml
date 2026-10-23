@@ -1,0 +1,33 @@
+seeds:
+  - name: weather_stations
+    description: >
+      The four FMI stations the ingestion fetches (docs/data-sources.md). Names and coordinates are
+      from FMI's station metadata (stored query fmi::ef::stations, 2026-10-22). Edit a row here to
+      change a station's attributes; the snapshot keeps the history (phase 3 spec, decision 4).
+    config:
+      column_types:
+        fmisid: int
+        station_name: string
+        latitude: double
+        longitude: double
+        station_role: string
+    columns:
+      - name: fmisid
+        description: FMI station ID.
+        data_tests:
+          - unique
+          - not_null
+      - name: station_name
+        description: Station name as FMI publishes it.
+        data_tests:
+          - not_null
+      - name: latitude
+        description: Latitude, WGS84 degrees.
+      - name: longitude
+        description: Longitude, WGS84 degrees.
+      - name: station_role
+        description: Why the station is in the project.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [population_centre, wind_cluster]
