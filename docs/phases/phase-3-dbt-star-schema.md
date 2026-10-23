@@ -292,17 +292,47 @@ warehouse (its DBUs are billed to the workspace in `rg-energy-dev`).
 
 ## Acceptance criteria
 
-- [ ] Step 0 items are resolved and recorded here.
-- [ ] `terraform plan` after apply shows no changes.
-- [ ] No PAT, client secret or token in the repo or in `profiles.yml`: the job uses the injected
-      `DBT_ACCESS_TOKEN`, CI an Entra ID token from OIDC, the owner OAuth.
-- [ ] `dbt build` passes in the job (models, seeds, snapshot, data tests, unit tests) and locally
-      against `dev_*` schemas; `sqlfluff lint` and `dbt parse` pass in CI.
-- [ ] Every complete UTC day from 2024-01-01 has 96 rows in `fct_power_15min`; the number of null
-      measures per column is recorded here and matches the known Fingrid gaps.
-- [ ] Both price grains are in gold: `price_resolution_minutes` is 60 before 2025-10-01 and 15 after.
-- [ ] A second scheduled run updates the last days through the incremental merge without duplicates.
-- [ ] The four report queries run on gold; their results are recorded here (short tables or numbers).
+- [ ] Step 0 items are resolved and recorded here. All but the Azure price per serverless SQL DBU
+      (item 4), which comes with the first week's cost.
+Checked 2026-10-23 (PRs #23–#27). Open: the first week's warehouse cost, with the Azure price per
+serverless SQL DBU (step 0 item 4), recorded from 2026-10-29 together with phase 2's week-1 cost.
+
+- [x] `terraform plan` after apply shows no changes (PR #23's apply job).
+- [x] No PAT, client secret or token in the repo or in `profiles.yml`: the job uses the injected
+      `DBT_ACCESS_TOKEN`, CI an Entra ID token from OIDC, the owner OAuth or an `az` token
+      (gitleaks clean on every commit).
+- [x] `dbt build` passes in the job (models, seeds, snapshot, data tests, unit tests) and locally
+      against `dev_*` schemas; `sqlfluff lint` and `dbt parse` pass in CI. First job run
+      2026-10-23 (manual, after PR #27's deploy): PASS=85 (8 views, 3 tables, 2 incremental models,
+      seed, snapshot, 65 data tests, 5 unit tests) in 67 s of dbt time, about 6 minutes in all with
+      the serverless start; source freshness 5/5. All 15 objects in `silver`/`gold` are owned by
+      the CI service principal.
+- [x] Every complete UTC day from 2024-01-01 has 96 rows in `fct_power_15min` (singular test).
+      Null measures up to the latest Fingrid interval: wind 379, consumption 390, production 355,
+      351 of them in all three at once, matching phase 1's "about 350 missing quarter-hours per
+      dataset". Prices have no nulls. Later intervals of the current day have a price but no
+      power yet (ENTSO-E publishes whole days).
+- [x] Both price grains are in gold: `price_resolution_minutes` is 60 up to 2025-09-30 21:45 UTC
+      (61,336 rows) and 15 from 2025-09-30 22:00 UTC, the start of delivery day 2025-10-01 CET.
+- [x] A second scheduled run updates the last days through the incremental merge without duplicates.
+      The first scheduled run (2026-10-23 07:15 UTC, after the manual first run at 06:43) merged
+      289 rows into `fct_power_15min` (3 days + 1) and 1,156 into `fct_weather_15min` (289 × 4
+      stations), all updates, since bronze had no new files in between; both facts still have one
+      row per key (98,584 and 394,084).
+- [x] The report queries run on gold (`dbt/analyses/`, run on 2026-10-23):
+  1. **Wind vs price:** r² 0.08 (2024), 0.22 (2025, hourly), 0.39 (2025, 15-min), 0.20 (2026);
+     each extra GW of wind lowers the price by 12–17 EUR/MWh. Wind explains a fifth to two fifths of
+     the variance in recent years.
+  2. **Negative prices:** 5.0 % of intervals (4,960), average −1.54 EUR/MWh. Wind covers 36 % of
+     consumption then, against 23 % otherwise; consumption is lower (8,427 vs 9,681 MW); most often
+     at 03 local time and in June; 42 % at weekends (27 % for positive prices).
+  3. **Consumption vs temperature (Dec–Feb):** correlation −0.77, about 134 MW more per degree
+     colder: 10,836 MW around 0 °C, 14,125 MW below −30 °C.
+  4. **Profiles:** weekday prices peak at 09 and 19 local time (1.5–1.6× the daily average) and
+     bottom out at 03–04 (0.5×); weekends are about half as expensive, with only an evening peak.
+     **Intra-hour:** since 15-minute pricing the four quarter-hours of an hour differ by 15.5
+     EUR/MWh on average (p95 57), more than the 7.7 EUR/MWh change from one hour to the next.
+     Hour-to-hour change was 9.6 EUR/MWh in the hourly era.
 - [ ] Warehouse cost for the first week of scheduled runs is recorded, and the total stays within the
       budget.
 
