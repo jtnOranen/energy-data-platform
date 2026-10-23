@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 #
-# Idempotent bootstrap for the energy-data-platform Terraform backend and
-# GitHub Actions OIDC identity. Run once locally; safe to re-run (it checks
-# before creating anything, per docs/phases/phase-0-foundation.md).
+# Idempotent bootstrap for everything that needs the owner's rights rather than the CI service
+# principal's: the Terraform state backend, the resource groups and the Databricks workspace
+# (subscription-level operations), and the GitHub Actions identities (Entra ID operations). Terraform
+# does everything else. Safe to re-run (it checks before creating anything, per
+# docs/phases/phase-0-foundation.md); re-run it when a phase changes one of these.
 #
 # Usage:
 #   az login
@@ -27,6 +29,8 @@ DEV_RESOURCE_GROUP="rg-energy-dev"
 DATABRICKS_WORKSPACE="dbw-energy-dev"
 CONTAINER_NAME="tfstate"
 SP_NAME="gh-energy-data-platform"
+# Pull requests run as this one: it can read the platform but not change it (ADR 0016).
+PR_SP_NAME="gh-energy-data-platform-pr"
 
 echo "==> Checking az and gh login"
 az account show >/dev/null
@@ -126,22 +130,27 @@ az storage container create \
   --auth-mode login \
   -o none
 
-echo "==> App registration + service principal: $SP_NAME"
-APP_ID=$(az ad app list --display-name "$SP_NAME" --query "[0].appId" -o tsv)
-if [[ -z "$APP_ID" ]]; then
-  APP_ID=$(az ad app create --display-name "$SP_NAME" --query appId -o tsv)
-  echo "    created app registration: $APP_ID"
-else
-  echo "    found existing app registration: $APP_ID"
-fi
+# Prints the app ID of an app registration with a service principal, creating either if missing.
+ensure_app_and_sp () {
+  local name="$1" app_id sp_id
+  app_id=$(az ad app list --display-name "$name" --query "[0].appId" -o tsv)
+  if [[ -z "$app_id" ]]; then
+    app_id=$(az ad app create --display-name "$name" --query appId -o tsv)
+    echo "    created app registration $name: $app_id" >&2
+  else
+    echo "    found existing app registration $name: $app_id" >&2
+  fi
+  sp_id=$(az ad sp list --filter "appId eq '$app_id'" --query "[0].id" -o tsv)
+  if [[ -z "$sp_id" ]]; then
+    az ad sp create --id "$app_id" -o none
+    echo "    created service principal for $name" >&2
+  fi
+  echo "$app_id"
+}
 
-SP_OBJECT_ID=$(az ad sp list --filter "appId eq '$APP_ID'" --query "[0].id" -o tsv)
-if [[ -z "$SP_OBJECT_ID" ]]; then
-  SP_OBJECT_ID=$(az ad sp create --id "$APP_ID" --query id -o tsv)
-  echo "    created service principal: $SP_OBJECT_ID"
-else
-  echo "    found existing service principal: $SP_OBJECT_ID"
-fi
+echo "==> App registrations + service principals: $SP_NAME, $PR_SP_NAME"
+APP_ID=$(ensure_app_and_sp "$SP_NAME")
+PR_APP_ID=$(ensure_app_and_sp "$PR_SP_NAME")
 
 echo "==> Federated credentials (OIDC, no client secret)"
 
@@ -152,9 +161,9 @@ echo "==> Federated credentials (OIDC, no client secret)"
 read -r OWNER_ID REPO_ID <<< "$(gh api "repos/${GITHUB_OWNER}/${REPO}" --jq '"\(.owner.id) \(.id)"')"
 
 add_federated_credential () {
-  local cred_name="$1" subject="$2"
+  local app_id="$1" cred_name="$2" subject="$3"
   local existing_subject
-  existing_subject=$(az ad app federated-credential list --id "$APP_ID" \
+  existing_subject=$(az ad app federated-credential list --id "$app_id" \
     --query "[?name=='$cred_name'].subject | [0]" -o tsv)
   if [[ "$existing_subject" == "$subject" ]]; then
     echo "    $cred_name already up to date"
@@ -170,20 +179,25 @@ add_federated_credential () {
 JSON
 )
     if [[ -z "$existing_subject" ]]; then
-      az ad app federated-credential create --id "$APP_ID" --parameters "$params" -o none
+      az ad app federated-credential create --id "$app_id" --parameters "$params" -o none
       echo "    created $cred_name"
     else
-      az ad app federated-credential update --id "$APP_ID" --federated-credential-id "$cred_name" --parameters "$params" -o none
+      az ad app federated-credential update --id "$app_id" --federated-credential-id "$cred_name" --parameters "$params" -o none
       echo "    updated $cred_name (subject had changed)"
     fi
   fi
 }
 
-add_federated_credential "gh-energy-data-platform-main" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:ref:refs/heads/main"
-add_federated_credential "gh-energy-data-platform-pr" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:pull_request"
+SUBJECT_PREFIX="repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}"
+add_federated_credential "$APP_ID" "gh-energy-data-platform-main" "${SUBJECT_PREFIX}:ref:refs/heads/main"
 # A job that declares `environment: dev` (the apply job) gets this subject instead of the
 # ref:refs/heads/main one, so it needs its own credential.
-add_federated_credential "gh-energy-data-platform-env-dev" "repo:${GITHUB_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}:environment:dev"
+add_federated_credential "$APP_ID" "gh-energy-data-platform-env-dev" "${SUBJECT_PREFIX}:environment:dev"
+# Pull requests: the read-only principal (ADR 0016). The same subject on two app registrations is
+# allowed; the client ID a workflow logs in with picks the app. The deploying app keeps its
+# pull_request credential until the workflows have switched (phase 4, PR A2 removes it).
+add_federated_credential "$PR_APP_ID" "gh-energy-data-platform-pr" "${SUBJECT_PREFIX}:pull_request"
+add_federated_credential "$APP_ID" "gh-energy-data-platform-pr" "${SUBJECT_PREFIX}:pull_request"
 
 echo "==> Role assignments"
 
@@ -191,16 +205,16 @@ echo "==> Role assignments"
 # principal, so a fresh role assignment occasionally fails on the first try.
 # Retry a few times instead of failing the whole script.
 assign_role_if_missing () {
-  local role="$1" scope="$2"
+  local app_id="$1" role="$2" scope="$3"
   local existing
-  existing=$(az role assignment list --assignee "$APP_ID" --role "$role" --scope "$scope" \
+  existing=$(az role assignment list --assignee "$app_id" --role "$role" --scope "$scope" \
     --query "[0].id" -o tsv)
   if [[ -n "$existing" ]]; then
     echo "    $role on $scope already assigned"
     return
   fi
   for attempt in 1 2 3 4 5; do
-    if az role assignment create --assignee "$APP_ID" --role "$role" --scope "$scope" -o none 2>/dev/null; then
+    if az role assignment create --assignee "$app_id" --role "$role" --scope "$scope" -o none 2>/dev/null; then
       echo "    assigned $role on $scope"
       return
     fi
@@ -216,16 +230,22 @@ assign_role_if_missing () {
 DEV_RG_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${DEV_RESOURCE_GROUP}"
 STORAGE_SCOPE=$(az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
 
-assign_role_if_missing "Contributor" "$DEV_RG_SCOPE"
-assign_role_if_missing "Role Based Access Control Administrator" "$DEV_RG_SCOPE"
-assign_role_if_missing "Storage Blob Data Contributor" "$STORAGE_SCOPE"
+assign_role_if_missing "$APP_ID" "Contributor" "$DEV_RG_SCOPE"
+assign_role_if_missing "$APP_ID" "Role Based Access Control Administrator" "$DEV_RG_SCOPE"
+assign_role_if_missing "$APP_ID" "Storage Blob Data Contributor" "$STORAGE_SCOPE"
 
-echo "==> Service principal as Databricks workspace admin"
+# Read only: Terraform plans on PRs refresh resources (Reader) and read the state without taking
+# its lock (plan -lock=false; a reader can't lease the blob). See ADR 0016.
+assign_role_if_missing "$PR_APP_ID" "Reader" "$DEV_RG_SCOPE"
+assign_role_if_missing "$PR_APP_ID" "Storage Blob Data Reader" "$STORAGE_SCOPE"
+
+echo "==> Service principals in the Databricks workspace"
 
 # A Contributor on the workspace resource is normally made a workspace admin on first use, but for a
 # service principal that only happens when the client also sends an Azure management token, which the
 # GitHub OIDC auth used in CI (github-oidc-azure) doesn't. So add it once here, as the owner, through
 # the workspace SCIM API. Terraform's databricks provider and the bundle deploy both need it.
+# The PR principal joins as a regular user (no admin): what it may read is granted in Terraform.
 DATABRICKS_RESOURCE="2ff814a6-3304-4ab8-85cb-cd0e6f879c1d" # the Azure Databricks first-party app
 DATABRICKS_HOST="https://$(az databricks workspace show --name "$DATABRICKS_WORKSPACE" \
   --resource-group "$DEV_RESOURCE_GROUP" --query workspaceUrl -o tsv)"
@@ -235,24 +255,33 @@ dbx_rest () {
   az rest --resource "$DATABRICKS_RESOURCE" "$@"
 }
 
-ADMINS_GROUP_ID=$(dbx_rest --method get --url "$SCIM/Groups?filter=displayName%20eq%20admins" \
-  --query "Resources[0].id" -o tsv)
-DBX_SP_ID=$(dbx_rest --method get \
-  --url "$SCIM/ServicePrincipals?filter=applicationId%20eq%20$APP_ID" \
-  --query "Resources[0].id" -o tsv)
-if [[ -z "$DBX_SP_ID" ]]; then
-  DBX_SP_ID=$(dbx_rest --method post --url "$SCIM/ServicePrincipals" --body "$(cat <<JSON
+# Prints the workspace ID of a service principal, adding it to the workspace if missing.
+ensure_workspace_sp () {
+  local app_id="$1" name="$2" dbx_id
+  dbx_id=$(dbx_rest --method get \
+    --url "$SCIM/ServicePrincipals?filter=applicationId%20eq%20$app_id" \
+    --query "Resources[0].id" -o tsv)
+  if [[ -z "$dbx_id" ]]; then
+    dbx_id=$(dbx_rest --method post --url "$SCIM/ServicePrincipals" --body "$(cat <<JSON
 {
   "schemas": ["urn:ietf:params:scim:schemas:core:2.0:ServicePrincipal"],
-  "applicationId": "$APP_ID",
-  "displayName": "$SP_NAME"
+  "applicationId": "$app_id",
+  "displayName": "$name",
+  "entitlements": [{"value": "workspace-access"}, {"value": "databricks-sql-access"}]
 }
 JSON
 )" --query id -o tsv)
-  echo "    added $SP_NAME to the workspace"
-else
-  echo "    $SP_NAME already in the workspace"
-fi
+    echo "    added $name to the workspace" >&2
+  else
+    echo "    $name already in the workspace" >&2
+  fi
+  echo "$dbx_id"
+}
+
+ADMINS_GROUP_ID=$(dbx_rest --method get --url "$SCIM/Groups?filter=displayName%20eq%20admins" \
+  --query "Resources[0].id" -o tsv)
+DBX_SP_ID=$(ensure_workspace_sp "$APP_ID" "$SP_NAME")
+ensure_workspace_sp "$PR_APP_ID" "$PR_SP_NAME" >/dev/null
 # Adding an existing member again is a no-op.
 dbx_rest --method patch --url "$SCIM/Groups/$ADMINS_GROUP_ID" --body "$(cat <<JSON
 {
@@ -265,6 +294,7 @@ echo "    $SP_NAME is in the workspace admins group"
 
 echo "==> GitHub repo variables (not secrets) on ${GITHUB_OWNER}/${REPO}"
 gh variable set AZURE_CLIENT_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$APP_ID"
+gh variable set AZURE_PR_CLIENT_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$PR_APP_ID"
 gh variable set AZURE_TENANT_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$TENANT_ID"
 gh variable set AZURE_SUBSCRIPTION_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$SUBSCRIPTION_ID"
 gh variable set TFSTATE_RESOURCE_GROUP --repo "${GITHUB_OWNER}/${REPO}" --body "$RESOURCE_GROUP"
@@ -278,6 +308,7 @@ echo "Databricks workspace:     $DATABRICKS_WORKSPACE"
 echo "Storage account:   $STORAGE_ACCOUNT"
 echo "Blob container:    $CONTAINER_NAME"
 echo "App registration:  $SP_NAME ($APP_ID)"
+echo "PR app registration: $PR_SP_NAME ($PR_APP_ID)"
 echo "Subscription:      $SUBSCRIPTION_ID"
 echo "Tenant:             $TENANT_ID"
-echo "GitHub variables set on ${GITHUB_OWNER}/${REPO}: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, TFSTATE_RESOURCE_GROUP, TFSTATE_STORAGE_ACCOUNT"
+echo "GitHub variables set on ${GITHUB_OWNER}/${REPO}: AZURE_CLIENT_ID, AZURE_PR_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, TFSTATE_RESOURCE_GROUP, TFSTATE_STORAGE_ACCOUNT"

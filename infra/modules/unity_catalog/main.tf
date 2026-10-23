@@ -85,6 +85,13 @@ resource "databricks_grants" "catalog" {
     principal  = var.owner_user_name
     privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT", "READ_VOLUME", "CREATE_SCHEMA"]
   }
+
+  # The read-only PR principal (ADR 0016): reads everything for plans and dbt deferral, and creates
+  # its own pr_<n>_* schemas for dbt PR builds. It can't change bronze, silver or gold.
+  grant {
+    principal  = var.pr_service_principal_id
+    privileges = ["USE_CATALOG", "USE_SCHEMA", "SELECT", "CREATE_SCHEMA"]
+  }
 }
 
 resource "databricks_grants" "landing" {

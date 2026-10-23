@@ -14,6 +14,11 @@ variable "tags" {
   default     = {}
 }
 
+variable "pr_service_principal_id" {
+  description = "Application ID of the read-only service principal pull requests run as (ADR 0016)."
+  type        = string
+}
+
 variable "owner_user_name" {
   description = "Owner's Databricks user name (their Entra ID user principal name), granted CAN_USE."
   type        = string

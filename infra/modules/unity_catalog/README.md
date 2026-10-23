@@ -11,6 +11,9 @@ owns them):
 - Grants for the owner: read everything in the catalog, read the raw files in `landing`, and
   `CREATE SCHEMA` on the catalog so local dbt runs can create the owner's `dev_silver`/`dev_gold`.
   The owner owns those dev schemas only; the CI SP owns everything else.
+- Grants for the read-only PR principal (`gh-energy-data-platform-pr`, ADR 0016): read everything in
+  the catalog, and `CREATE SCHEMA` for its own dbt PR schemas (`pr_<n>_silver`/`pr_<n>_gold`). It
+  must exist in the workspace before the apply; `bootstrap.sh` adds it.
 
 The CI service principal must be a workspace admin, which `infra/bootstrap/bootstrap.sh` takes care
 of. Workspace admins of an auto-enabled workspace hold `CREATE STORAGE CREDENTIAL`,

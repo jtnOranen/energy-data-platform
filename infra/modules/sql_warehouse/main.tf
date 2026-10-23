@@ -32,13 +32,18 @@ resource "databricks_sql_endpoint" "this" {
   }
 }
 
-# The owner runs dbt locally and queries gold. databricks_permissions is authoritative; the creator
-# keeps IS_OWNER regardless.
+# The owner runs dbt locally and queries gold; the read-only PR principal lints and builds dbt PRs.
+# databricks_permissions is authoritative; the creator keeps IS_OWNER regardless.
 resource "databricks_permissions" "this" {
   sql_endpoint_id = databricks_sql_endpoint.this.id
 
   access_control {
     user_name        = var.owner_user_name
     permission_level = "CAN_USE"
+  }
+
+  access_control {
+    service_principal_name = var.pr_service_principal_id
+    permission_level       = "CAN_USE"
   }
 }

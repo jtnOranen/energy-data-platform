@@ -30,6 +30,7 @@ env:
   TF_VAR_owner: ${{ vars.OWNER }}
   TF_VAR_owner_object_id: ${{ vars.OWNER_OBJECT_ID }}
   TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+  TF_VAR_pr_client_id: ${{ vars.AZURE_PR_CLIENT_ID }}
   # Defense in depth for a public repo: the pull_request OIDC subject doesn't say whether
   # the PR came from a fork. GitHub already gives fork PRs a read-only token by default,
   # but the steps that request the OIDC token (init/validate/plan) are also gated on the
