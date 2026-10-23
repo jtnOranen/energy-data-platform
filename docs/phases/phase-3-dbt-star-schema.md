@@ -39,6 +39,13 @@ PR that needs them, and the outcome is recorded here.
    variables), or a generated one? We need our own target name (`prod`) for the schema macro. And can
    the bundle sync `../dbt` (`sync.paths`) so the task finds the project as workspace files, keeping
    `dbt/` at the repo root as `CLAUDE.md` lays it out? If not, the fallback is a `git_source` task.
+   **Checked 2026-10-23** (Jobs API `DbtTask` in the Databricks Go SDK, and `bundle validate`):
+   with `warehouse_id` Databricks generates the profile; `profiles_directory` is allowed only
+   without one. So the task sets no `warehouse_id`, points `profiles_directory` at the project, and
+   runs `--target prod`; the warehouse comes from `profiles.yml` and the token from the injected
+   `DBT_ACCESS_TOKEN`. `sync.paths: [., ../dbt]` works: the sync root moves to the repo root, the
+   project lands at `<file_path>/dbt` and `project_directory: ../../dbt` resolves to it; the bronze
+   wheel path still resolves. Confirmed end to end by the first job run (acceptance criteria).
 4. **Warehouse cost:** a serverless SQL warehouse at 2X-Small uses **4 DBU/hour** (Microsoft Learn
    pricing page). **Auto-stop: confirmed 2026-10-22** (Microsoft Learn, "Create a SQL warehouse"): the
    UI's minimum for serverless is 5 minutes, the API accepts **1 minute**, so the warehouse uses 1.
@@ -224,9 +231,10 @@ warnings, not errors.
 **The dbt job** in the bundle (`databricks/resources/dbt_job.yml`), run as the CI SP:
 
 - One `dbt_task` on **serverless jobs compute** (environment with `dbt-databricks==1.12.7`) using the
-  warehouse from A, `profiles_directory` and `project_directory` per step 0 item 3.
-- Commands: `dbt deps`, `dbt build`, `dbt source freshness`. Freshness runs last, so a stale source
-  fails the run visibly without stopping gold from updating with what did arrive.
+  warehouse from A through the project's `profiles.yml` (step 0 item 3). The bundle syncs `../dbt`.
+- Commands: `dbt deps`, `dbt build --target prod`, `dbt source freshness --target prod`. Freshness
+  runs last, so a stale source fails the run visibly without stopping gold from updating with what
+  did arrive.
 - Schedule: daily at **07:15 UTC** (decision 1). `max_concurrent_runs: 1`, one retry.
 - `.github/workflows/databricks.yml` also triggers on `dbt/**` (the bundle deploys the project files).
 
@@ -242,8 +250,11 @@ criteria), one per report question in `docs/roadmap.md`:
    consumption, hour and weekday against all intervals.
 3. `consumption_vs_temperature.sql`: winter (December–February) consumption against the average
    temperature of the four stations, by temperature band.
-4. `price_profiles.sql`: average price by local hour and weekday, and the intra-hour spread (max − min
-   of the four quarter-hours) before and after 2025-10-01, filtered on `price_resolution_minutes`.
+4. `price_profiles.sql`: average price by local hour on weekdays and at weekends, relative to the
+   day's average; and `intra_hour_spread.sql` (split out during implementation): the spread within
+   the hour (max − min of the four quarter-hours) and the change from one hour's average to the
+   next, before and after 2025-10-01 by `price_resolution_minutes`. Before the switch the spread is
+   zero by construction, so the hour-to-hour change is the comparison that works for both eras.
 
 **Docs:**
 

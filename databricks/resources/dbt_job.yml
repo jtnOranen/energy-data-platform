@@ -1,0 +1,49 @@
+resources:
+  jobs:
+    dbt_build:
+      name: dbt_build
+      description: >
+        Builds energy.silver and energy.gold from bronze with dbt (models, seed, snapshot, tests),
+        then checks source freshness. Runs as the CI service principal, which owns both schemas.
+
+      # Once a day, after the 06:30 bronze load (ADR 0014, phase 3 spec decision 1). The two jobs are
+      # coupled only by time; if bronze is late, freshness (the last command) fails the run.
+      schedule:
+        quartz_cron_expression: "0 15 7 * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      max_concurrent_runs: 1
+
+      # Empty on schedule. A manual run can pass e.g. --full-refresh to rebuild the incremental
+      # facts from silver (dbt/README.md).
+      parameters:
+        - name: build_flags
+          default: ""
+
+      performance_target: STANDARD
+      environments:
+        - environment_key: dbt
+          spec:
+            environment_version: "6"
+            dependencies:
+              # Same pin as the root dependency group `dbt` (pyproject.toml).
+              - dbt-databricks==1.12.7
+
+      tasks:
+        - task_key: dbt
+          environment_key: dbt
+          max_retries: 1
+          min_retry_interval_millis: 300000
+          dbt_task:
+            source: WORKSPACE
+            project_directory: ../../dbt
+            # The project's own profiles.yml, not a generated one: only its `prod` target writes to
+            # silver/gold (macros/generate_schema_name.sql). Databricks injects DBT_ACCESS_TOKEN for
+            # the run-as principal; the warehouse is in the profile, so no warehouse_id here (the
+            # API allows profiles_directory only without one).
+            profiles_directory: .
+            commands:
+              - dbt deps
+              - dbt build --target prod {{job.parameters.build_flags}}
+              # Last, so a stale source fails the run without stopping gold from updating.
+              - dbt source freshness --target prod

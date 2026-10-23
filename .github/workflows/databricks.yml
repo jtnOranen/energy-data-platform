@@ -1,9 +1,11 @@
 name: Databricks
 
+# dbt/** too: the bundle syncs the dbt project to the workspace, where the dbt_build job runs it.
 on:
   pull_request:
     paths:
       - "databricks/**"
+      - "dbt/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/databricks.yml"
@@ -11,6 +13,7 @@ on:
     branches: [main]
     paths:
       - "databricks/**"
+      - "dbt/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/databricks.yml"
