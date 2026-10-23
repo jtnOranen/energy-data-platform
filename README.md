@@ -1,5 +1,7 @@
 # Energy data platform
 
+[![CI](https://github.com/jtnOranen/energy-data-platform/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jtnOranen/energy-data-platform/actions/workflows/ci.yml)
+
 > One sentence on the question + one finding from the data. *(fill in phase 5)*
 
 How wind power and weather show up in the Finnish day-ahead electricity price — an end-to-end data platform on

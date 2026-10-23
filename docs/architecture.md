@@ -52,16 +52,29 @@ Terraform creates every Azure and Databricks resource. GitHub Actions tests ever
 | Databricks Workflows | Orchestration: `bronze_load` every 6 hours, `dbt_build` once a day after it | Defined in a Databricks Asset Bundle; dbt task on serverless jobs compute (ADR 0014) |
 | AI/BI dashboard | Report on gold | Defined in the bundle, screenshots in README |
 | Terraform (`infra/`) | All infrastructure | Remote state in a separately bootstrapped storage account |
-| GitHub Actions (`.github/`) | CI on PR, CD on `main` | OIDC to Azure, no long-lived secrets |
+| GitHub Actions (`.github/`) | CI on PR, CD on `main` | One `ci.yml` with a required gate check; OIDC to Azure, no long-lived secrets |
 
 ## Environments
 
-One environment, `dev`, to keep cost low. Pull requests get their own dbt schema (`pr_<number>`) in the same
-workspace, dropped when the PR closes. Production-like separation is shown through this pattern, not a second workspace.
+One environment, `dev`, to keep cost low. Pull requests that change dbt get their own schemas (`pr_<number>_silver`,
+`pr_<number>_gold`) in the same workspace: slim CI builds only the changed models and their dependants there, reading
+everything else from production, and the schemas are dropped when the PR closes. Production-like separation is shown
+through this pattern, not a second workspace.
+
+## CI/CD
+
+One workflow, `ci.yml`, for every pull request and every push to `main` (ADR 0015). It detects which parts changed and
+calls their reusable workflows (Terraform, ingestion, Databricks bundle, dbt); pre-commit and gitleaks run on every PR.
+Its gate job, `all checks passed`, is the only required status check on `main`, so nothing merges red and docs-only PRs
+aren't blocked by skipped checks. On `main` the deploys run in order: Terraform apply, function deploy, bundle deploy.
+Third-party actions are pinned to commit SHAs and kept current by Dependabot.
 
 ## Security model
 
-- GitHub Actions → Azure: OIDC federated credentials (one for `main`, one for `pull_request`) on a service principal.
+- GitHub Actions → Azure: OIDC federated credentials, no secrets, on two service principals. The deploying one
+  (`main` and `environment:dev` credentials) applies Terraform and deploys. Pull requests run as a read-only one
+  (`pull_request` credential, ADR 0016): it plans, validates and builds dbt PR schemas, but can't change
+  infrastructure or production data. The `dev` environment accepts deployments only from `main`.
 - Function → Key Vault and ADLS: system-assigned managed identity with least-privilege RBAC roles.
 - Databricks → ADLS: Access Connector (managed identity) + Unity Catalog storage credential and external location.
 - No secrets in the repository or in GitHub secrets except where a tool cannot use OIDC (documented in an ADR if so).
@@ -75,4 +88,5 @@ recorded in the README.
 ## Decisions
 
 See `docs/adr/`. Key ones: Azure Function for ingestion (0002), dbt for transformations (0003), OIDC for CI (0004),
-UTC and 15-minute grain (0005), serverless jobs for bronze (0011), workspace in bootstrap (0012), serverless workspace (0013), daily dbt job (0014).
+UTC and 15-minute grain (0005), serverless jobs for bronze (0011), workspace in bootstrap (0012), serverless workspace (0013), daily dbt job (0014),
+one CI entry point with a gate check (0015), read-only identity for pull requests (0016).

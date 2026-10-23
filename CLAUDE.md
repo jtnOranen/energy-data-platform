@@ -40,10 +40,11 @@ The owner is building this **to learn and to show skills to employers**. That ch
    - Python: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`
    - dbt: `dbt build --select <changed models>+`
 4. **Never run `terraform apply` or `terraform destroy` locally.** Infrastructure changes go through a pull request
-   and GitHub Actions. `terraform plan` locally is fine, but a full local plan can't refresh the
-   Unity Catalog objects (the CI service principal owns them; the owner has no rights on the storage
-   credential, on purpose). Locally, plan with `-target=module.<name>` for non-Databricks modules;
-   the PR's CI plan is the full check.
+   and GitHub Actions. `terraform plan` locally is fine, but a refreshing local plan can't read the
+   storage credential or the warehouse's permissions (the CI service principal owns them; the owner
+   has no rights on them, on purpose). Plan locally like a PR does:
+   `terraform plan -refresh=false -lock=false` (compares the code with the state, reads nothing).
+   PR plans don't refresh; `main` refreshes before every apply (ADR 0016).
 5. **No secrets in the repo, ever.** API keys live in Azure Key Vault and GitHub uses OIDC. If you see a secret
    in a file or diff, stop and tell the owner.
 6. **Update docs in the same PR** when behaviour, structure or a decision changes.
@@ -112,3 +113,11 @@ uv run sqlfluff lint models
   Unity Catalog objects and the access connector *are* Terraform. `bootstrap.sh` also makes the CI
   service principal a workspace admin: with GitHub OIDC auth (`github-oidc-azure`) Databricks doesn't
   auto-provision a Contributor SP the way it does with a client secret.
+- **CI has one entry point and one required check** (`ci.yml`, gate job `all checks passed`, ADR 0015).
+  A new part of the platform needs a path rule in the `changes` job, a job calling its reusable
+  workflow, and an entry in the gate's `needs`; otherwise its checks never run or never count.
+- **Pull requests run as `gh-energy-data-platform-pr`** (read-only, ADR 0016): any new PR job that logs
+  in uses `vars.AZURE_PR_CLIENT_ID`, and can't write anything except its own `pr_<n>_*` dbt schemas.
+  Only `main` jobs use `vars.AZURE_CLIENT_ID`. Identities live in `bootstrap.sh`, not Terraform.
+- **Actions are pinned to commit SHAs** with the version in a comment; add new ones the same way
+  (Dependabot keeps them current).
