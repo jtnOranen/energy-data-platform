@@ -33,7 +33,7 @@ jobs:
           if [[ $? -eq 0 ]]; then echo "UNEXPECTED: tagged rg-energy-dev"; fail=1; else echo "refused: $(grep -o 'AuthorizationFailed' err.txt | head -1)"; fi
           sa=$(az storage account list -g rg-energy-dev --query "[?starts_with(name,'stenergydev')].name | [0]" -o tsv)
           az storage container create --account-name "$sa" -n probe --auth-mode login -o none 2>err.txt
-          if [[ $? -eq 0 ]]; then echo "UNEXPECTED: created a container"; fail=1; else echo "refused: $(grep -oE 'AuthorizationPermissionMismatch|AuthorizationFailure|not authorized' err.txt | head -1)"; fi
+          if [[ $? -eq 0 ]]; then echo "UNEXPECTED: created a container"; fail=1; else echo "refused (account $sa): $(grep -v '^\s*$' err.txt | head -3 | cut -c1-200)"; fi
           exit $fail
 
       - name: Try to write production data (must be refused)
