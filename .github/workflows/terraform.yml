@@ -73,12 +73,20 @@ jobs:
 
       # continue-on-error so a failed plan still gets reported in the PR comment below;
       # the "Fail job if plan failed" step at the end is what actually fails the job.
-      # On PRs without the state lock: the read-only principal can't lease the state blob, and a
-      # PR plan is only a preview (main plans with the lock before applying). ADR 0016.
+      # On PRs, as the read-only principal (ADR 0016): no state lock, since a reader can't lease the
+      # state blob; and no refresh, since two reads need more than read rights (the warehouse's
+      # permissions need CAN_MANAGE, the storage credential a privilege on it; phase 4 spec,
+      # step 0). A PR plan shows what the PR changes against state; main plans with the lock and
+      # a refresh before every apply, so drift is still caught there.
       - name: Terraform plan
         id: plan
         if: env.IS_TRUSTED_SOURCE == 'true'
-        run: terraform plan -no-color -input=false -lock=${{ github.event_name != 'pull_request' }} -out=tfplan
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            terraform plan -no-color -input=false -lock=false -refresh=false -out=tfplan
+          else
+            terraform plan -no-color -input=false -out=tfplan
+          fi
         continue-on-error: true
 
       - name: Terraform show (plan as text)
