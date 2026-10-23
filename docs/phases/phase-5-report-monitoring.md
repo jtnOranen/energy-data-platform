@@ -145,24 +145,22 @@ hourly evaluation, so a few dollars a month for three (to confirm on the Azure p
 step 0 item 5, before PR A); action group emails are free. Databricks job notifications are free. Worth checking
 against the budget once phase 2 and 3's week-1 costs are in (from 2026-10-29).
 
-## Decisions (open, for the owner)
+## Decisions (made by the owner on 2026-10-23)
 
-1. **Where the report logic lives.** (a) **dbt report models** (`rpt_*` in gold, contracts, tests,
-   an exposure), and the dashboard only selects from them. (b) SQL in the dashboard's datasets:
-   quicker to iterate, but untested, unlinted and invisible to dbt's lineage and slim CI.
-   **Recommendation: (a)**: the numbers in the README then come from tested code.
-2. **dbt results for the health page.** (a) **An `on-run-end` hook** into `ops.dbt_results`: a small
-   macro, no new package. (b) The `elementary` package: richer, but a large dependency with its
-   own schema and models. (c) No dbt results, job status only from system tables. **Recommendation:
-   (a)**.
-3. **Alert channel.** (a) **Email only** (Azure action group, Databricks job notifications), no
-   secrets. (b) Also a Teams or Slack webhook: a secret to store and rotate. **Recommendation: (a)**.
-4. **Function alert threshold.** (a) **Two or more failures in three hours** per function. (b)
-   Every failure: one email per hour during an outage like ENTSO-E's, mostly noise since the 48-hour
-   window refetches. **Recommendation: (a)**.
-5. **One dashboard or two.** (a) **Two**: `energy_report` (the findings, for the README) and
-   `pipeline_health` (operations, cost). Different readers, and the report one needs no access to
-   system tables. (b) One dashboard with a health page. **Recommendation: (a)**.
+1. **The report logic lives in dbt report models** (`rpt_*` in gold, contracts, tests, an
+   exposure), and the dashboard only selects from them, so the numbers in the README come from
+   tested code. Rejected: SQL in the dashboard's datasets (quicker to iterate, but untested,
+   unlinted and invisible to dbt's lineage and slim CI).
+2. **dbt results come from an `on-run-end` hook** into `ops.dbt_results`: a small macro, no new
+   package. Rejected: the `elementary` package (a large dependency with its own schema and models)
+   and job status only.
+3. **Alerts are email only** (Azure action group, Databricks job notifications), so no secret is
+   needed. Rejected: a Teams or Slack webhook (a secret to store and rotate).
+4. **A function alert fires on two or more failures in three hours.** A single failure, which the
+   48-hour window refetches anyway, stays quiet. Rejected: an email for every failure (one per
+   hour during an outage like ENTSO-E's).
+5. **Two dashboards:** `energy_report` (the findings, for the README) and `pipeline_health`
+   (operations, cost). Different readers, and the report one needs no access to system tables.
 
 ## Acceptance criteria
 
