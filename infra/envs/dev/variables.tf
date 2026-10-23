@@ -7,6 +7,7 @@ variable "location" {
 variable "owner" {
   description = "Owner's Entra ID user principal name (email): the owner tag and the owner's Unity Catalog principal."
   type        = string
+  sensitive   = true # an email address, and the repo and its PR plan comments are public
 }
 
 variable "owner_object_id" {
