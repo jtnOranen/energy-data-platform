@@ -193,11 +193,17 @@ add_federated_credential "$APP_ID" "gh-energy-data-platform-main" "${SUBJECT_PRE
 # A job that declares `environment: dev` (the apply job) gets this subject instead of the
 # ref:refs/heads/main one, so it needs its own credential.
 add_federated_credential "$APP_ID" "gh-energy-data-platform-env-dev" "${SUBJECT_PREFIX}:environment:dev"
-# Pull requests: the read-only principal (ADR 0016). The same subject on two app registrations is
-# allowed; the client ID a workflow logs in with picks the app. The deploying app keeps its
-# pull_request credential until the workflows have switched (phase 4, PR A2 removes it).
+# Pull requests: only the read-only principal (ADR 0016).
 add_federated_credential "$PR_APP_ID" "gh-energy-data-platform-pr" "${SUBJECT_PREFIX}:pull_request"
-add_federated_credential "$APP_ID" "gh-energy-data-platform-pr" "${SUBJECT_PREFIX}:pull_request"
+
+# The deploying app held the pull_request credential until phase 4 moved PR jobs to the read-only
+# principal; remove it so a PR can no longer log in as the deploying identity.
+if az ad app federated-credential show --id "$APP_ID" \
+    --federated-credential-id "gh-energy-data-platform-pr" -o none 2>/dev/null; then
+  az ad app federated-credential delete --id "$APP_ID" \
+    --federated-credential-id "gh-energy-data-platform-pr" -o none
+  echo "    removed gh-energy-data-platform-pr from $SP_NAME (PRs use $PR_SP_NAME)"
+fi
 
 echo "==> Role assignments"
 

@@ -66,9 +66,22 @@ Checked before or in the PR that needs them; outcomes recorded here.
    least set of Unity Catalog privileges (or a metastore-level role) that lets a non-owner refresh
    the storage credential, external locations, catalog, schemas, volume, grants and the warehouse,
    or decide to plan the Databricks modules only on `main` (fallback, see decision 2).
+   **Checked 2026-10-23** (PR #30's plan as the PR principal, with the grants from PR #29): every
+   azurerm resource and every Databricks object refreshed with read rights, except two:
+   `databricks_permissions` on the warehouse ("does not have Manage permissions": reading a
+   warehouse ACL needs `CAN_MANAGE`, which would also allow changing it) and the storage credential
+   ("does not have any privileges on Credential"). Rather than grant either, **PR plans run with
+   `-refresh=false`**: they compare the configuration with the state without reading any
+   resource, so they cover all modules with read rights only. They don't show drift (changes made
+   outside Terraform); `main` refreshes before every apply and checks for an empty plan after it,
+   so drift is still caught. This replaces the fallback in decision 2 (Azure modules only), which
+   would have left the Databricks modules unplanned on PRs.
 2. **State lock with read-only access:** plans on PRs use `-lock=false` (a read-only identity
    can't take the blob lease). Confirm the azurerm backend reads state with only
    `Storage Blob Data Reader`, and that this also ends the PR-plan vs `main`-apply lock collisions.
+   **Confirmed 2026-10-23:** `terraform init` and the lockless plan work with `Storage Blob Data
+   Reader` on the state account. A PR plan no longer takes the lock, so it can't collide with an
+   apply on `main`.
 3. **Required check from a reusable-workflow setup:** the name GitHub reports for the gate job
    (e.g. `CI / all checks passed`), and that a gate depending on skipped jobs still reports
    success.
