@@ -15,6 +15,9 @@ env:
   # Pull requests run as the read-only principal, main as the deploying one (ADR 0016).
   ARM_CLIENT_ID: ${{ github.event_name == 'pull_request' && vars.AZURE_PR_CLIENT_ID || vars.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+  # Where job failures are emailed (phase 5). A repository variable, not in the files: the repo is
+  # public (same value as Terraform's alert_email).
+  BUNDLE_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
   # Same fork-PR gate as terraform.yml: only this repository's own branches get the OIDC token.
   IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 

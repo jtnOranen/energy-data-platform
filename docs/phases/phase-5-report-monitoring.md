@@ -58,6 +58,10 @@ or streaming views: gold updates daily (ADR 0014), so the report does too.
 6. **Job failure email without publishing the address:** the repo is public and `alert_email` is a
    sensitive Terraform variable. Confirm a bundle variable (`BUNDLE_VAR_alert_email` from the repo
    variable in CI) keeps it out of the repository while the job settings hold it.
+   **Checked 2026-10-23** (PR A): a bundle variable without a default, set from
+   `BUNDLE_VAR_alert_email` (the `ALERT_EMAIL` repository variable) in `databricks.yml`'s workflow.
+   `bundle validate` resolves it into the jobs' `email_notifications`, and fails with "no value
+   assigned to required variable alert_email" when it's missing, so it can't silently be empty.
 
 ## Deliverables
 
@@ -140,9 +144,10 @@ The dashboard `energy_report` (AI/BI, `databricks/resources/dashboards/energy_re
 
 Dashboards query the warehouse when viewed (results are cached), a few seconds of 2X-Small time per
 visit. The report models add seconds to the daily dbt run. Alert rules: Azure Monitor log alerts
-are billed per rule and month, by evaluation frequency; roughly a dollar or two per rule at
-hourly evaluation, so a few dollars a month for three (to confirm on the Azure pricing page with
-step 0 item 5, before PR A); action group emails are free. Databricks job notifications are free. Worth checking
+are billed per monitored time series and month by evaluation frequency; the Azure Retail Prices
+API (2026-10-23) lists $0.50/month at 15-minute frequency and nothing cheaper, so one rule split
+by function (three time series) is about $1.50/month. Action group emails are free (up to 1,000 a
+month). Databricks job notifications are free. Worth checking
 against the budget once phase 2 and 3's week-1 costs are in (from 2026-10-29).
 
 ## Decisions (made by the owner on 2026-10-23)

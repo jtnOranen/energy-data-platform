@@ -14,6 +14,10 @@ resources:
           default: ""
       max_concurrent_runs: 1
 
+      # A failed rebuild leaves a source's bronze tables missing until fixed, so it emails too.
+      email_notifications:
+        on_failure: ["${var.alert_email}"]
+
       performance_target: STANDARD
       environments:
         - environment_key: bronze

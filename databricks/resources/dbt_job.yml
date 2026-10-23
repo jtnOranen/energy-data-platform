@@ -14,6 +14,18 @@ resources:
         pause_status: UNPAUSED
       max_concurrent_runs: 1
 
+      # Phase 5 alerts: a failed run (after its retry) emails the owner. That includes stale data:
+      # the last command, dbt source freshness, fails when bronze is over 24 hours old. A run still
+      # going after 30 minutes (normally about 6) warns.
+      email_notifications:
+        on_failure: ["${var.alert_email}"]
+        on_duration_warning_threshold_exceeded: ["${var.alert_email}"]
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1800
+
       # Empty on schedule. A manual run can pass e.g. --full-refresh to rebuild the incremental
       # facts from silver (dbt/README.md).
       parameters:

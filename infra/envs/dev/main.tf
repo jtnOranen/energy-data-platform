@@ -87,6 +87,18 @@ module "function_app" {
   landing_container_id   = module.storage.landing_container_id
 }
 
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project                 = "energy"
+  env                     = "dev"
+  location                = var.location
+  resource_group_name     = data.azurerm_resource_group.dev.name
+  tags                    = local.tags
+  application_insights_id = module.function_app.application_insights_id
+  alert_email             = var.alert_email
+}
+
 # The owner needs to read/write secrets (API keys) in phase 1. Everyone else gets nothing
 # by default -- the vault uses RBAC authorization with no other role assignments.
 resource "azurerm_role_assignment" "owner_kv_secrets_officer" {

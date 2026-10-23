@@ -15,6 +15,17 @@ resources:
         pause_status: UNPAUSED
       max_concurrent_runs: 1
 
+      # Phase 5 alerts: a failed run (after its retries) emails the owner, and so does a run still
+      # going after 30 minutes (normally about 7).
+      email_notifications:
+        on_failure: ["${var.alert_email}"]
+        on_duration_warning_threshold_exceeded: ["${var.alert_email}"]
+      health:
+        rules:
+          - metric: RUN_DURATION_SECONDS
+            op: GREATER_THAN
+            value: 1800
+
       # Serverless jobs compute (ADR 0011). Standard mode is cheaper and may start a few minutes
       # later, which doesn't matter for a job that runs every 6 hours.
       performance_target: STANDARD
