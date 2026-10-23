@@ -1,0 +1,56 @@
+name: probe PR identity
+
+# Temporary (phase 4 acceptance; this PR is closed without merging): logs in as the read-only PR
+# principal and tries to change things it must not. Passes only if every attempt is refused.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      DATABRICKS_HOST: https://adb-7405610438268005.5.azuredatabricks.net
+      WAREHOUSE_ID: f5e7a914313e58c9
+    steps:
+      - name: Azure login as the PR principal
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_PR_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Try to change Azure resources (must be refused)
+        run: |
+          set +e
+          fail=0
+          az group update -n rg-energy-dev --set tags.probe=1 -o none 2>err.txt
+          if [[ $? -eq 0 ]]; then echo "UNEXPECTED: tagged rg-energy-dev"; fail=1; else echo "refused: $(grep -o 'AuthorizationFailed' err.txt | head -1)"; fi
+          sa=$(az storage account list -g rg-energy-dev --query "[?starts_with(name,'stenergydev')].name | [0]" -o tsv)
+          az storage container create --account-name "$sa" -n probe --auth-mode login -o none 2>err.txt
+          if [[ $? -eq 0 ]]; then echo "UNEXPECTED: created a container"; fail=1; else echo "refused: $(grep -oE 'AuthorizationPermissionMismatch|AuthorizationFailure|not authorized' err.txt | head -1)"; fi
+          exit $fail
+
+      - name: Try to write production data (must be refused)
+        run: |
+          token=$(az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d --query accessToken -o tsv)
+          echo "::add-mask::$token"
+          fail=0
+          for sql in \
+            "create table energy.silver.probe (x int)" \
+            "create table energy.gold.probe (x int)" \
+            "insert into energy.bronze.fmi_observations (fmisid) values ('0')" \
+            "drop view energy.silver.stg_fmi__observations"; do
+            body=$(jq -n --arg wh "$WAREHOUSE_ID" --arg s "$sql" '{warehouse_id: $wh, statement: $s, wait_timeout: "50s"}')
+            resp=$(curl -sS -X POST "$DATABRICKS_HOST/api/2.0/sql/statements" \
+              -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d "$body")
+            state=$(jq -r '.status.state' <<< "$resp")
+            msg=$(jq -r '.status.error.message // ""' <<< "$resp" | head -c 140)
+            if [[ "$state" == "SUCCEEDED" ]]; then echo "UNEXPECTED: $sql"; fail=1; else echo "refused: $sql -> $msg"; fi
+          done
+          exit $fail
