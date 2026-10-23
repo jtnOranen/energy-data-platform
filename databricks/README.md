@@ -25,12 +25,21 @@ CI deploys on every push to `main` that touches `databricks/` or `dbt/`
 (`.github/workflows/databricks.yml`), as the CI service principal with GitHub OIDC. Don't deploy from your own machine: the bundle's root
 path and `run_as` are the service principal's.
 
-Validate locally (as yourself, through `az login`):
+Validate locally (as yourself, through `az login`). The bundle needs the alert address, which isn't
+in the repository (it's public); CI takes it from the `ALERT_EMAIL` repository variable:
 
 ```bash
 cd databricks
+export BUNDLE_VAR_alert_email=<your email>
 DATABRICKS_AUTH_TYPE=azure-cli databricks bundle validate -t dev
 ```
+
+## Alerts
+
+`bronze_load`, `dbt_build` and `bronze_rebuild` email the owner when a run fails after its retries;
+the two scheduled jobs also warn when a run passes 30 minutes. A failing `dbt_build` includes stale
+data (`dbt source freshness` runs last). Function failures alert from Azure Monitor
+(`infra/modules/monitoring`).
 
 ## Run the job once by hand
 

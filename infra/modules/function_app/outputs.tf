@@ -12,3 +12,8 @@ output "application_insights_name" {
   description = "Name of the Application Insights resource the function logs to."
   value       = azurerm_application_insights.this.name
 }
+
+output "application_insights_id" {
+  description = "Resource ID of the Application Insights resource (scope for failure alerts)."
+  value       = azurerm_application_insights.this.id
+}

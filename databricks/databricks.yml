@@ -31,6 +31,11 @@ variables:
   landing_url:
     description: Root of the landing container (Terraform output storage_account_name).
     default: abfss://landing@stenergydevua7j.dfs.core.windows.net/
+  alert_email:
+    description: >
+      Where job failures are emailed. No default: the repo is public, so CI sets it from the
+      ALERT_EMAIL repository variable (BUNDLE_VAR_alert_email); locally pass
+      --var alert_email=... or set the same environment variable.
 
 targets:
   dev:
