@@ -26,7 +26,7 @@ ops = [
 # Java, so only the Databricks CI job installs it (`uv sync --group spark`). 4.1 is the closest
 # open-source release to what serverless environment 6 runs.
 spark = [
-    "pyspark>=4.1,<4.2",
+    "pyspark>=4.1,<4.3",
 ]
 
 [tool.uv]
