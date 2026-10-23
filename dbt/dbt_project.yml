@@ -15,6 +15,10 @@ models:
     marts:
       +schema: gold
       +materialized: table
+    # Tested report tables the energy_report dashboard selects from (phase 5, decision 1).
+    reports:
+      +schema: gold
+      +materialized: table
 
 seeds:
   energy:

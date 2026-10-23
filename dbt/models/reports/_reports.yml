@@ -1,0 +1,339 @@
+models:
+  - name: rpt_wind_price_fit
+    description: >
+      Report question 1: a linear fit of price on wind production per year and price grain. r² is
+      the share of price variance wind explains.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [year_number, price_resolution_minutes]
+    columns:
+      - name: year_number
+        description: Calendar year (local date).
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: price_resolution_minutes
+        description: Price grain, 60 or 15 minutes.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: interval_count
+        description: Quarter-hours with both a price and wind production.
+        data_type: bigint
+      - name: correlation
+        description: Pearson correlation of wind production and price.
+        data_type: double
+      - name: r_squared
+        description: Share of the price variance explained by wind (correlation squared).
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range: {arguments: {min_value: 0, max_value: 1}}
+      - name: slope_eur_mwh_per_gw
+        description: Change in price (EUR/MWh) per additional GW of wind.
+        data_type: double
+      - name: price_at_zero_wind_eur_mwh
+        description: The fit's price with no wind (intercept), EUR/MWh.
+        data_type: double
+
+  - name: rpt_wind_price_bands
+    description: >
+      Report question 1, the chart: the price distribution per 500 MW band of wind production, per
+      year and price grain.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [year_number, price_resolution_minutes, wind_band_mw]
+    columns:
+      - name: year_number
+        description: Calendar year (local date).
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: price_resolution_minutes
+        description: Price grain, 60 or 15 minutes.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: wind_band_mw
+        description: Lower edge of the 500 MW wind production band.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: interval_count
+        description: Quarter-hours in the band.
+        data_type: bigint
+      - name: avg_price_eur_mwh
+        description: Average price, EUR/MWh.
+        data_type: double
+      - name: p10_price_eur_mwh
+        description: 10th percentile of the price, EUR/MWh.
+        data_type: double
+      - name: median_price_eur_mwh
+        description: Median price, EUR/MWh.
+        data_type: double
+      - name: p90_price_eur_mwh
+        description: 90th percentile of the price, EUR/MWh.
+        data_type: double
+
+  - name: rpt_negative_prices_summary
+    description: >
+      Report question 2: negative, zero and positive prices side by side (share, wind, consumption,
+      typical local hour and month).
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: price_band
+        description: negative, zero or positive.
+        data_type: string
+        constraints: [{type: not_null}]
+        data_tests:
+          - unique
+          - accepted_values: {arguments: {values: [negative, zero, positive]}}
+      - name: interval_count
+        description: Quarter-hours in the band.
+        data_type: bigint
+      - name: share_of_intervals
+        description: The band's share of all priced quarter-hours (0–1).
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range: {arguments: {min_value: 0, max_value: 1}}
+      - name: avg_price_eur_mwh
+        description: Average price, EUR/MWh.
+        data_type: double
+      - name: avg_wind_production_mw
+        description: Average wind production, MW.
+        data_type: double
+      - name: avg_consumption_mw
+        description: Average consumption, MW.
+        data_type: double
+      - name: avg_wind_share_of_consumption
+        description: Average wind production divided by consumption (0–1 and above).
+        data_type: double
+      - name: weekend_share
+        description: Share of the band's quarter-hours on Saturdays and Sundays (0–1).
+        data_type: double
+      - name: most_common_local_hour
+        description: The local hour of day the band occurs in most often.
+        data_type: int
+      - name: most_common_month
+        description: The month the band occurs in most often (1–12).
+        data_type: int
+
+  - name: rpt_negative_prices_calendar
+    description: >
+      Report question 2, the heatmap: negative-price quarter-hours per local month and hour of day.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [month_start, hour_of_day]
+    columns:
+      - name: month_start
+        description: First day of the local month.
+        data_type: date
+        constraints: [{type: not_null}]
+      - name: hour_of_day
+        description: Local hour of day, 0–23.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: interval_count
+        description: Priced quarter-hours in the cell.
+        data_type: bigint
+      - name: negative_interval_count
+        description: Quarter-hours with a negative price.
+        data_type: bigint
+      - name: negative_share
+        description: negative_interval_count / interval_count (0–1).
+        data_type: double
+        data_tests:
+          - dbt_utils.accepted_range: {arguments: {min_value: 0, max_value: 1}}
+
+  - name: rpt_winter_consumption_temperature
+    description: >
+      Report question 3: winter (December–February) consumption per 2-degree band of the four
+      stations' average temperature, per winter, with each winter's linear fit repeated on its rows.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [winter_label, temperature_band_c]
+    columns:
+      - name: winter_label
+        description: The winter's two years, December in the first (e.g. 2024-25).
+        data_type: string
+        constraints: [{type: not_null}]
+      - name: temperature_band_c
+        description: Lower edge of the 2 °C band of the four stations' average temperature.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: interval_count
+        description: Quarter-hours in the band.
+        data_type: bigint
+      - name: avg_consumption_mw
+        description: Average consumption, MW.
+        data_type: double
+      - name: winter_correlation
+        description: Correlation of temperature and consumption over the whole winter.
+        data_type: double
+      - name: winter_slope_mw_per_degree
+        description: The winter's fitted change in consumption per degree (negative = more when colder).
+        data_type: double
+
+  - name: rpt_price_profiles
+    description: >
+      Report question 4a: average price per local hour on weekdays and at weekends, and relative to
+      the day type's average.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [day_type, hour_of_day]
+    columns:
+      - name: day_type
+        description: weekday or weekend.
+        data_type: string
+        constraints: [{type: not_null}]
+        data_tests:
+          - accepted_values: {arguments: {values: [weekday, weekend]}}
+      - name: hour_of_day
+        description: Local hour of day, 0–23.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: interval_count
+        description: Priced quarter-hours in the cell.
+        data_type: bigint
+      - name: avg_price_eur_mwh
+        description: Average price, EUR/MWh.
+        data_type: double
+      - name: relative_to_day_type_average
+        description: The hour's average price divided by the average of its day type's hours.
+        data_type: double
+
+  - name: rpt_intra_hour_spread
+    description: >
+      Report question 4b: per price grain and local hour, the spread of the four quarter-hour
+      prices within an hour (zero by construction before 2025-10-01) and the change from one hour's
+      average to the next.
+    config:
+      contract: {enforced: true}
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [price_resolution_minutes, hour_of_day]
+    columns:
+      - name: price_resolution_minutes
+        description: Price grain, 60 or 15 minutes.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: hour_of_day
+        description: Local hour of day, 0–23.
+        data_type: int
+        constraints: [{type: not_null}]
+      - name: hour_count
+        description: Hours in the cell.
+        data_type: bigint
+      - name: avg_intra_hour_spread
+        description: Average of max − min of the hour's quarter-hour prices, EUR/MWh.
+        data_type: double
+      - name: p95_intra_hour_spread
+        description: 95th percentile of that spread, EUR/MWh.
+        data_type: double
+      - name: avg_change_from_previous_hour
+        description: Average absolute change of the hourly average price from the previous hour, EUR/MWh.
+        data_type: double
+      - name: p95_change_from_previous_hour
+        description: 95th percentile of that change, EUR/MWh.
+        data_type: double
+
+  - name: rpt_price_spikes_summary
+    description: >
+      Price-spike anatomy: the most expensive 1 % of quarter-hours and the negative ones against all
+      others (wind, consumption, production, net import, temperature, timing).
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: spike_class
+        description: top_1_pct (price at or above the 99th percentile), negative, or other.
+        data_type: string
+        constraints: [{type: not_null}]
+        data_tests:
+          - unique
+          - accepted_values: {arguments: {values: [top_1_pct, negative, other]}}
+      - name: top_1_pct_threshold_eur_mwh
+        description: The 99th percentile of all prices, EUR/MWh (the same on every row).
+        data_type: double
+      - name: interval_count
+        description: Quarter-hours in the class.
+        data_type: bigint
+      - name: avg_price_eur_mwh
+        description: Average price, EUR/MWh.
+        data_type: double
+      - name: avg_wind_production_mw
+        description: Average wind production, MW.
+        data_type: double
+      - name: avg_consumption_mw
+        description: Average consumption, MW.
+        data_type: double
+      - name: avg_production_mw
+        description: Average production in Finland, MW.
+        data_type: double
+      - name: avg_net_import_mw
+        description: Average consumption − production, MW (positive = Finland imports).
+        data_type: double
+      - name: avg_temperature_c
+        description: Average of the four stations' temperature, °C.
+        data_type: double
+      - name: weekend_share
+        description: Share of the class's quarter-hours on Saturdays and Sundays (0–1).
+        data_type: double
+      - name: most_common_local_hour
+        description: The local hour of day the class occurs in most often.
+        data_type: int
+      - name: most_common_month
+        description: The month the class occurs in most often (1–12).
+        data_type: int
+
+  - name: rpt_price_spike_intervals
+    description: >
+      Price-spike anatomy, the table: every quarter-hour in the most expensive 1 %, ranked by price,
+      with wind, consumption, production, net import and temperature at the time.
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: price_rank
+        description: 1 = the most expensive quarter-hour.
+        data_type: int
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: interval_start_utc
+        description: Start of the quarter-hour, UTC.
+        data_type: timestamp
+        constraints: [{type: not_null}]
+        data_tests: [unique]
+      - name: interval_start_local
+        description: The same moment as wall-clock time in Finland (Europe/Helsinki), for reading.
+        data_type: timestamp
+      - name: price_eur_mwh
+        description: Day-ahead price, EUR/MWh.
+        data_type: decimal(10,2)
+      - name: price_resolution_minutes
+        description: Price grain, 60 or 15 minutes.
+        data_type: int
+      - name: wind_production_mw
+        description: Wind production, MW.
+        data_type: double
+      - name: consumption_mw
+        description: Consumption, MW.
+        data_type: double
+      - name: production_mw
+        description: Production in Finland, MW.
+        data_type: double
+      - name: net_import_mw
+        description: Consumption − production, MW (positive = Finland imports).
+        data_type: double
+      - name: temperature_c
+        description: Average of the four stations' temperature, °C.
+        data_type: double

@@ -1,0 +1,21 @@
+exposures:
+  - name: energy_report
+    label: Energy report
+    type: dashboard
+    maturity: medium
+    description: >
+      The AI/BI dashboard that answers the report questions (docs/roadmap.md) and shows the
+      price-spike anatomy. Each of its datasets selects from one of these models (phase 5 spec,
+      decision 1), so dbt's lineage shows what the dashboard depends on.
+    owner:
+      name: Project owner
+    depends_on:
+      - ref('rpt_wind_price_fit')
+      - ref('rpt_wind_price_bands')
+      - ref('rpt_negative_prices_summary')
+      - ref('rpt_negative_prices_calendar')
+      - ref('rpt_winter_consumption_temperature')
+      - ref('rpt_price_profiles')
+      - ref('rpt_intra_hour_spread')
+      - ref('rpt_price_spikes_summary')
+      - ref('rpt_price_spike_intervals')

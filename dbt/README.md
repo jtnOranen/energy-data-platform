@@ -32,7 +32,7 @@ uv run dbt build                 # models + tests
 uv run dbt build -s staging      # one folder
 uv run dbt test --select test_type:unit   # unit tests only
 uv run dbt source freshness
-uv run sqlfluff lint models tests analyses   # needs a login too: the templater compiles
+uv run sqlfluff lint models tests   # needs a login too: the dbt templater compiles
 ```
 
 ## In production (the `dbt_build` job)
@@ -49,14 +49,12 @@ databricks bundle run -t dev dbt_build
 databricks bundle run -t dev dbt_build --params build_flags=--full-refresh
 ```
 
-## Report queries (`analyses/`)
+## Report models (`models/reports/`)
 
-One query per report question (`docs/roadmap.md`). dbt compiles them but doesn't run them:
-
-```bash
-uv run dbt compile -s path:analyses
-# then run target/compiled/energy/analyses/<name>.sql in the SQL editor
-```
+The report questions (`docs/roadmap.md`) and the price-spike anatomy as tested tables in `gold`
+(`rpt_*`, contracts enforced). The `energy_report` dashboard selects from them and does no
+calculations of its own (phase 5, decision 1); `_exposures.yml` records that dependency, so dbt's
+lineage and slim CI see it. They replaced the ad hoc queries phase 3 kept in `analyses/`.
 
 ## Targets
 

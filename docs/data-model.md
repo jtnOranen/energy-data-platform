@@ -49,6 +49,23 @@ is valid from 1900-01-01, so observations older than the snapshot find a version
 Gold models have **model contracts** (`contract: {enforced: true}`) with named primary and foreign key
 constraints. Unity Catalog records those keys but doesn't enforce them; the `unique` and `relationships` tests do.
 
+## Reports (dbt, `models/reports`, in gold)
+
+Tested tables the `energy_report` dashboard selects from (phase 5, decision 1), recorded as a dbt exposure. Local
+time comes from the dimensions; contracts enforced.
+
+| Model | Grain | Answers |
+| --- | --- | --- |
+| `rpt_wind_price_fit` | year × price grain | Q1: correlation, r², slope per GW, price at zero wind |
+| `rpt_wind_price_bands` | year × price grain × 500 MW wind band | Q1 chart: average, median, 10th/90th percentile price |
+| `rpt_negative_prices_summary` | price band (negative / zero / positive) | Q2: share, wind, consumption, weekend share, typical hour and month |
+| `rpt_negative_prices_calendar` | local month × hour | Q2 heatmap: share of negative quarter-hours |
+| `rpt_winter_consumption_temperature` | winter × 2 °C band | Q3: consumption by temperature, each winter's fit |
+| `rpt_price_profiles` | day type × local hour | Q4a: average price, relative to the day type's average |
+| `rpt_intra_hour_spread` | price grain × local hour | Q4b: spread within the hour, change from the previous hour |
+| `rpt_price_spikes_summary` | spike class (top 1 % / negative / other) | price-spike anatomy |
+| `rpt_price_spike_intervals` | quarter-hour in the top 1 % | the spikes, ranked, with the system's state |
+
 ## Tests
 
 | Where | Test |
