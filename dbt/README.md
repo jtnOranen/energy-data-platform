@@ -64,6 +64,7 @@ uv run dbt compile -s path:analyses
 | --- | --- | --- | --- |
 | `dev` | owner, locally | OAuth or `DBT_DATABRICKS_TOKEN` | `dev_silver`, `dev_gold` |
 | `ci` | GitHub Actions (`dbt.yml`) | Entra ID token from OIDC | parse and lint only, nothing built |
+| `pr` | GitHub Actions on PRs, as the read-only principal | Entra ID token from OIDC | `pr_<n>_silver`, `pr_<n>_gold`: slim CI (`state:modified+ --defer` against the production manifest, facts from the last 30 days); dropped when the PR closes (`dbt-pr-cleanup.yml`) |
 | `prod` | the Databricks job (PR E) | `DBT_ACCESS_TOKEN` injected by Databricks | `silver`, `gold` |
 
 ## Layout
