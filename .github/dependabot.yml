@@ -23,5 +23,10 @@ updates:
     groups:
       python:
         patterns: ["*"]
+    # pyspark stays on the release closest to what serverless environment 6 runs the bronze job
+    # on (phase 2 spec); patches are fine, a new minor waits for the environment.
+    ignore:
+      - dependency-name: pyspark
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     commit-message:
       prefix: chore(deps)
