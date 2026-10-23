@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0 # publishes no floating major tags
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -47,10 +47,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       # The function's remote build installs requirements.txt. It's generated from uv.lock here
       # rather than committed, so it can't drift. The package itself is deployed as source.
@@ -60,7 +60,7 @@ jobs:
           --output-file ingestion/requirements.txt
 
       - name: Azure login (OIDC)
-        uses: azure/login@v3
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -76,7 +76,7 @@ jobs:
           echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: Deploy
-        uses: Azure/functions-action@v1
+        uses: Azure/functions-action@c5060b3b8bb1ebbcb531abd00c822ecbaa8ea656 # v1.5.7
         with:
           app-name: ${{ steps.app.outputs.name }}
           package: ingestion

@@ -29,10 +29,10 @@ jobs:
         working-directory: dbt
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.0 # publishes no floating major tags
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           enable-cache: true
 
@@ -47,7 +47,7 @@ jobs:
 
       - name: Azure login (OIDC)
         if: env.IS_TRUSTED_SOURCE == 'true'
-        uses: azure/login@v2
+        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           # Pull requests run as the read-only principal, main as the deploying one (ADR 0016).
           client-id: ${{ github.event_name == 'pull_request' && vars.AZURE_PR_CLIENT_ID || vars.AZURE_CLIENT_ID }}
@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload production manifest
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dbt-prod-manifest
           path: dbt/prod-target/manifest.json
@@ -128,7 +128,7 @@ jobs:
 
       - name: Upload dbt docs
         if: env.IS_TRUSTED_SOURCE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dbt-docs
           path: |
