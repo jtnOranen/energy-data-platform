@@ -15,6 +15,11 @@ variable "owner_object_id" {
   sensitive   = true # repo is public; keep this out of plan output and PR comments
 }
 
+variable "pr_client_id" {
+  description = "Application (client) ID of gh-energy-data-platform-pr, the read-only principal pull requests run as (bootstrap.sh, ADR 0016). Granted read access in Unity Catalog and on the SQL warehouse."
+  type        = string
+}
+
 variable "budget_amount_eur" {
   description = "Monthly consumption budget amount in EUR for the dev resource group."
   type        = number

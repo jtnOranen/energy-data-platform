@@ -125,20 +125,22 @@ module "databricks" {
 module "unity_catalog" {
   source = "../../modules/unity_catalog"
 
-  project                = "energy"
-  env                    = "dev"
-  access_connector_id    = module.databricks.access_connector_id
-  storage_account_name   = module.storage.storage_account_name
-  landing_container_name = module.storage.landing_container_name
-  lake_container_name    = module.storage.lake_container_name
-  owner_user_name        = var.owner
+  project                 = "energy"
+  env                     = "dev"
+  access_connector_id     = module.databricks.access_connector_id
+  storage_account_name    = module.storage.storage_account_name
+  landing_container_name  = module.storage.landing_container_name
+  lake_container_name     = module.storage.lake_container_name
+  owner_user_name         = var.owner
+  pr_service_principal_id = var.pr_client_id
 }
 
 module "sql_warehouse" {
   source = "../../modules/sql_warehouse"
 
-  project         = "energy"
-  env             = "dev"
-  tags            = local.tags
-  owner_user_name = var.owner
+  project                 = "energy"
+  env                     = "dev"
+  tags                    = local.tags
+  owner_user_name         = var.owner
+  pr_service_principal_id = var.pr_client_id
 }

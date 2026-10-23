@@ -85,6 +85,14 @@ Delivered as small PRs in this order: (A) read-only PR identity and repository s
 (B) one CI workflow with a single required gate, (C) dbt PR schemas (slim CI), (D) supply-chain
 hardening (SHA pins, Dependabot), (E) docs.
 
+A is split in two so nothing breaks in between (changed during implementation). **A1** creates the
+PR principal (bootstrap: both app registrations hold the `pull_request` credential for now) and
+grants it read access in Terraform, while PR workflows still use the deploying principal, so A1's
+own plan runs as before. **A2** switches the PR jobs to the PR principal, which makes A2's own CI
+the step 0 item 1 test, and removes the `pull_request` credential from the deploying app. The
+branch protection's required check is added with B, once the gate check exists: requiring a check
+that never reports would block every merge, B's included.
+
 ### A. Read-only identity for pull requests and repository settings
 
 `infra/bootstrap/bootstrap.sh`:
