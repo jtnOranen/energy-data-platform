@@ -140,8 +140,9 @@ The dashboard `energy_report` (AI/BI, `databricks/resources/dashboards/energy_re
 
 Dashboards query the warehouse when viewed (results are cached), a few seconds of 2X-Small time per
 visit. The report models add seconds to the daily dbt run. Alert rules: Azure Monitor log alerts
-cost about $1.50 per rule per month at hourly evaluation, so three function alerts are about
-$4.50/month; action group emails are free. Databricks job notifications are free. Worth checking
+are billed per rule and month, by evaluation frequency; roughly a dollar or two per rule at
+hourly evaluation, so a few dollars a month for three (to confirm on the Azure pricing page with
+step 0 item 5, before PR A); action group emails are free. Databricks job notifications are free. Worth checking
 against the budget once phase 2 and 3's week-1 costs are in (from 2026-10-29).
 
 ## Decisions (open, for the owner)
