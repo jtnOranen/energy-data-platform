@@ -1,21 +1,8 @@
 name: Ingestion
 
+# Called by ci.yml when ingestion/ (or the shared Python lock) changes (ADR 0015).
 on:
-  pull_request:
-    paths:
-      - "ingestion/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".python-version"
-      - ".github/workflows/ingestion.yml"
-  push:
-    branches: [main]
-    paths:
-      - "ingestion/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".python-version"
-      - ".github/workflows/ingestion.yml"
+  workflow_call:
 
 permissions:
   contents: read

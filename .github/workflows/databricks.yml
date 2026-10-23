@@ -1,22 +1,9 @@
 name: Databricks
 
-# dbt/** too: the bundle syncs the dbt project to the workspace, where the dbt_build job runs it.
+# Called by ci.yml when databricks/ or dbt/ changes (ADR 0015): the bundle syncs the dbt project to
+# the workspace, where the dbt_build job runs it.
 on:
-  pull_request:
-    paths:
-      - "databricks/**"
-      - "dbt/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/databricks.yml"
-  push:
-    branches: [main]
-    paths:
-      - "databricks/**"
-      - "dbt/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/databricks.yml"
+  workflow_call:
 
 permissions:
   contents: read
