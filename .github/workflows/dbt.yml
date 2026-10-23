@@ -1,19 +1,8 @@
 name: dbt
 
+# Called by ci.yml when dbt/ changes (ADR 0015).
 on:
-  pull_request:
-    paths:
-      - "dbt/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/dbt.yml"
-  push:
-    branches: [main]
-    paths:
-      - "dbt/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - ".github/workflows/dbt.yml"
+  workflow_call:
 
 permissions:
   contents: read

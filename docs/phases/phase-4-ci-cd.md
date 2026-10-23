@@ -158,7 +158,11 @@ ci.yml
   are mergeable, and it fails if any job it depends on failed; skipped jobs count as passed.
 - On `main`, deploys run **in order**: Terraform apply, then the function deploy, then the bundle
   deploy, each only if its part changed (or, for the bundle, if Terraform changed something it
-  depends on). One `concurrency` group for `main` deploys, so two merges can't deploy at once.
+  depends on). Each deploy keeps its own `concurrency` group (changed during implementation, from
+  one group for all): GitHub keeps only the newest pending run of a group, and dropping a pending
+  deploy is safe only when a newer deploy of the *same* part replaces it, since every deploy is
+  the full state of its part at that commit. A workflow-level group on `main` could drop a whole
+  run whose changes the next run doesn't touch.
 - PR jobs authenticate as the read-only principal (A); `main` jobs as the deploying one. The
   fork-PR gate (`IS_TRUSTED_SOURCE`) stays: fork PRs get the checks that need no Azure.
 - `precommit` runs the same hooks as local commits (one source of truth), with gitleaks over the

@@ -1,15 +1,9 @@
 name: Terraform
 
+# Called by ci.yml when infra/ changes (ADR 0015). The caller's event decides what runs: plan on
+# pull requests, plan and apply on pushes to main.
 on:
-  pull_request:
-    paths:
-      - "infra/**"
-      - ".github/workflows/terraform.yml"
-  push:
-    branches: [main]
-    paths:
-      - "infra/**"
-      - ".github/workflows/terraform.yml"
+  workflow_call:
 
 permissions:
   id-token: write

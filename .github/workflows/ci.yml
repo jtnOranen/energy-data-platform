@@ -1,0 +1,182 @@
+name: CI
+
+# The single entry point for every pull request and every push to main (ADR 0015). The per-part
+# workflows are reusable (workflow_call) and run only when their part changed; the gate job at the
+# end is the only required status check, so a PR that skips a part still gets a result.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to a PR branch cancels its running checks. Pushes to main each run to the end: their
+# deploys must not be cancelled half-way.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      infra: ${{ steps.diff.outputs.infra }}
+      ingestion: ${{ steps.diff.outputs.ingestion }}
+      databricks: ${{ steps.diff.outputs.databricks }}
+      dbt: ${{ steps.diff.outputs.dbt }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Plain git instead of a paths-filter action: one less third-party dependency. The paths
+      # are the ones each workflow used to filter on; a change to ci.yml runs everything.
+      - name: Diff
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$EVENT" == "pull_request" ]]; then
+            files=$(git diff --name-only "$PR_BASE...$PR_HEAD")
+          elif [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            files=$(git ls-files) # first push of a branch: no "before" to diff against
+          else
+            files=$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA")
+          fi
+          echo "$files"
+
+          changed () { grep -qE "$1" <<< "$files" && echo true || echo false; }
+          all=$(changed '^\.github/workflows/ci\.yml$')
+          shared='^(pyproject\.toml|uv\.lock)$'
+          {
+            echo "infra=$([[ $all == true ]] && echo true || changed '^(infra/|\.github/workflows/terraform\.yml$)')"
+            echo "ingestion=$([[ $all == true ]] && echo true || changed "^(ingestion/|\.python-version$|\.github/workflows/ingestion\.yml$)|$shared")"
+            echo "databricks=$([[ $all == true ]] && echo true || changed "^(databricks/|dbt/|\.github/workflows/databricks\.yml$)|$shared")"
+            echo "dbt=$([[ $all == true ]] && echo true || changed "^(dbt/|\.github/workflows/dbt\.yml$)|$shared")"
+          } >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  # The pre-commit hooks, so a commit made without them installed is still checked. Terraform's
+  # hooks are left to terraform.yml (they need providers); gitleaks runs separately below, since
+  # its pre-commit hook only scans staged changes.
+  precommit:
+    name: pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.0 # publishes no floating major tags
+
+      - name: pre-commit
+        env:
+          SKIP: terraform_fmt,terraform_validate,gitleaks
+        run: uvx pre-commit run --all-files --show-diff-on-failure
+
+  # Secret scanning over the commits this run brings in (ADR 0006). Pinned release, checksum
+  # verified, instead of a third-party action.
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.30.0
+      GITLEAKS_SHA256: 79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
+          echo "${GITLEAKS_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+
+      - name: Scan
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [[ "$EVENT" == "pull_request" ]]; then
+            range="$PR_BASE..$PR_HEAD"
+          elif [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            range="$GITHUB_SHA"
+          else
+            range="$PUSH_BEFORE..$GITHUB_SHA"
+          fi
+          ./gitleaks git --redact --verbose --log-opts="$range" .
+
+  # On main the deploys run in order: Terraform first (it creates what the others deploy onto),
+  # then the function, then the bundle. On PRs the same needs only order the checks, and a part
+  # whose prerequisite was skipped still runs.
+  terraform:
+    name: terraform
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    uses: ./.github/workflows/terraform.yml
+
+  ingestion:
+    name: ingestion
+    needs: [changes, terraform]
+    if: >-
+      always() && needs.changes.outputs.ingestion == 'true'
+      && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped')
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/ingestion.yml
+
+  databricks:
+    name: databricks
+    needs: [changes, terraform, ingestion]
+    if: >-
+      always() && needs.changes.outputs.databricks == 'true'
+      && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped')
+      && (needs.ingestion.result == 'success' || needs.ingestion.result == 'skipped')
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/databricks.yml
+
+  dbt:
+    name: dbt
+    needs: changes
+    if: needs.changes.outputs.dbt == 'true'
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/dbt.yml
+
+  # The only required status check (branch protection, infra/bootstrap/github-settings.sh). Runs
+  # always; skipped parts count as passed, a failed or cancelled one fails the gate.
+  gate:
+    name: all checks passed
+    needs: [changes, precommit, gitleaks, terraform, ingestion, databricks, dbt]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if grep -qE '"(failure|cancelled)"' <<< "$RESULTS"; then
+            echo "A required job failed or was cancelled."
+            exit 1
+          fi

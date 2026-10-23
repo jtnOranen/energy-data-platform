@@ -40,5 +40,26 @@ gh api --method PUT "repos/$REPO/environments/dev" --input - --silent <<'JSON'
 JSON
 echo "    deployments only from protected branches (main)"
 
+# Nothing reaches main without green checks (the phase 4 goal). The one required check is CI's gate
+# job (ADR 0015), bound to the GitHub Actions app (ID 15368) so no other app can report a check of
+# the same name. strict: a PR must be up to date with main, so the checks ran on what will merge.
+# enforce_admins: the owner can't bypass it either. A PR is still required, with no approvals
+# (one owner).
+echo "==> Branch protection on main"
+gh api --method PUT "repos/$REPO/branches/main/protection" --input - --silent <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "checks": [{"context": "all checks passed", "app_id": 15368}]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": {"required_approving_review_count": 0},
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+echo "    required check: all checks passed (up to date with main), admins included"
+
 echo ""
 echo "==> Done"
