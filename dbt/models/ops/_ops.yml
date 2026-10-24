@@ -29,9 +29,9 @@ models:
       - name: termination_code
         description: Databricks' termination code (SUCCESS, RUN_EXECUTION_ERROR, ...).
       - name: run_duration_seconds
-        description: Total run time, seconds.
-      - name: setup_duration_seconds
-        description: Time spent starting compute, seconds (serverless start-up).
+        description: >
+          Wall-clock run time from start to end, seconds (the timeline's own duration columns are
+          0 for serverless runs).
       - name: is_success
         description: True when the run succeeded.
 

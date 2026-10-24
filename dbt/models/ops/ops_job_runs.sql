@@ -30,9 +30,7 @@ runs as (
         max(period_end_time) as run_end_utc,
         max_by(trigger_type, period_end_time) as trigger_type,
         max_by(result_state, period_end_time) as result_state,
-        max_by(termination_code, period_end_time) as termination_code,
-        max(run_duration_seconds) as run_duration_seconds,
-        max(setup_duration_seconds) as setup_duration_seconds
+        max_by(termination_code, period_end_time) as termination_code
     from timeline
     group by job_id, run_id
 ),
@@ -48,8 +46,8 @@ final as (
         runs.trigger_type,
         runs.result_state,
         runs.termination_code,
-        runs.run_duration_seconds,
-        runs.setup_duration_seconds,
+        -- Wall-clock duration: the timeline's own duration columns are 0 for serverless runs.
+        timestampdiff(second, runs.run_start_utc, runs.run_end_utc) as run_duration_seconds,
         runs.result_state = 'SUCCEEDED' as is_success
     from runs
     left join job_names on runs.job_id = job_names.job_id
