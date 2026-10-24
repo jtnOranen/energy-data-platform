@@ -29,9 +29,18 @@ or streaming views: gold updates daily (ADR 0014), so the report does too.
 
 ## Manual prerequisites (owner)
 
-1. In the Databricks account console, make the owner a **metastore admin** of
-   `metastore_azure_swedencentral` (the owner is account admin as the tenant's Global
-   Administrator). Needed once, to grant access to the system tables (step 0 item 1).
+1. Make the owner a Databricks **account admin** (corrected during implementation: the spec first
+   said metastore admin, which turned out not to be enough; step 0 item 1). Needed once, so
+   `bootstrap.sh` can grant access to the system tables. The owner signs in with a personal
+   Microsoft account, which the account console doesn't accept (it signs such accounts into
+   Microsoft's consumer tenant, "Microsoft Services", not the owner's), so:
+   1. in Entra ID, create a temporary native user (`…@<tenant>.onmicrosoft.com`) with the Global
+      Administrator role; on its first sign-in at accounts.azuredatabricks.net it becomes
+      account admin;
+   2. with it, in **User management**, give the owner's user the **Account admin** role (and, in
+      **Catalog**, make the owner metastore admin of `metastore_azure_swedencentral`);
+   3. delete the temporary user. The owner's account-admin role works from the workspace (SQL and
+      API grants), without the console.
 2. Build the first draft of each dashboard in the workspace UI with Claude Code's queries, so the
    layout is designed by eye; the bundle then takes over the exported definition (deliverable B).
 
@@ -42,6 +51,16 @@ or streaming views: gold updates daily (ADR 0014), so the report does too.
    dashboards and so runs their queries, item 3) and to themselves? Which system schemas need
    enabling first (`lakeflow` may be off by default)? The grants are owner-rights operations, so
    they go into `bootstrap.sh`, not Terraform (the CI principal can't grant on `system`).
+   **Checked 2026-10-24:** as metastore admin the owner could list the grants but not change them
+   ("PERMISSION_DENIED: User is not an account admin for Account"); as account admin (prerequisite
+   1) the grants work, through SQL and through the Unity Catalog API (`PATCH
+   /api/2.1/unity-catalog/permissions/schema/system.<schema>`), which `bootstrap.sh` uses because it
+   needs no SQL warehouse. `billing` and `lakeflow` were already enabled; `account users` already
+   has `USE CATALOG` on `system`, so the two schema grants are all it takes. Both service
+   principals get them: the deploying one runs the ops models in the dbt job, the PR one builds
+   them in slim CI. The system tables are metastore-wide, so the models filter on this workspace's
+   ID. List prices in `swedencentral` (USD per DBU): serverless SQL 0.91, serverless jobs 0.47,
+   which also settles phase 3's step 0 item 4.
 2. **Dashboards in the bundle:** the `dashboards` resource (`file_path` to a `.lv.json`,
    `warehouse_id`, `embed_credentials`, permissions) and `databricks bundle generate dashboard
    --existing-id` to export a UI draft, with the CLI version CI pins. What happens on deploy when
@@ -140,7 +159,12 @@ The dashboard `energy_report` (AI/BI, `databricks/resources/dashboards/energy_re
 ### C. Pipeline health
 
 - **System tables:** `bootstrap.sh` grants `USE SCHEMA`/`SELECT` on `system.billing` and
-  `system.lakeflow` to the CI principal and the owner (step 0 item 1).
+  `system.lakeflow` to both service principals (step 0 item 1); the owner has them as account admin.
+- **ops models** (changed during implementation, following decision 1): the health dashboard
+  doesn't query the system tables itself. dbt views in `ops` do the work, `ops_job_runs`,
+  `ops_daily_cost`, `ops_data_freshness`, `ops_dbt_runs`, `ops_dbt_issues`, recorded as the
+  `pipeline_health` exposure. Views rather than tables, so the dashboard shows the state when it's
+  opened, not at the last dbt run.
 - **dbt results:** an `on-run-end` hook writes each run's node results (model/test, status,
   duration, failures, invocation id, run time) to `energy.ops.dbt_results` (decision 2). New schema
   `ops` in Terraform, owned by the CI principal like the others. Only the `prod` target writes;

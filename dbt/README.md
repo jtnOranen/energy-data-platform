@@ -57,6 +57,13 @@ run (models, seeds, snapshot, tests, unit tests: status, duration, failing rows,
 skip it; to try it locally, `uv run dbt build --vars '{store_dbt_results: true}'` writes to
 `dev_ops.dbt_results` instead.
 
+## Ops models (`models/ops/`)
+
+Views in `ops` for the `pipeline_health` dashboard: job runs and daily cost from the Databricks
+system tables, data freshness per layer, and dbt run summaries and issues from `ops.dbt_results`.
+Reading the system tables needs grants only an account admin can give; `infra/bootstrap/bootstrap.sh`
+gives them to both service principals.
+
 ## Report models (`models/reports/`)
 
 The report questions (`docs/roadmap.md`) and the price-spike anatomy as tested tables in `gold`
