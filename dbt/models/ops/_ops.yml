@@ -1,0 +1,134 @@
+models:
+  - name: ops_job_runs
+    description: >
+      One row per run of this workspace's Databricks jobs, from system.lakeflow (a view, so always
+      current).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [job_id, run_id]
+    columns:
+      - name: job_id
+        description: Databricks job ID.
+        data_tests: [not_null]
+      - name: job_name
+        description: The job's current name (bronze_load, dbt_build, bronze_rebuild).
+      - name: run_id
+        description: Databricks run ID.
+        data_tests: [not_null]
+      - name: run_start_utc
+        description: When the run started, UTC.
+      - name: run_end_utc
+        description: When the run ended, UTC.
+      - name: trigger_type
+        description: CRON for scheduled runs, ONETIME for manual ones, and so on.
+      - name: result_state
+        description: SUCCEEDED, FAILED, CANCELLED, ... (null while running).
+      - name: termination_code
+        description: Databricks' termination code (SUCCESS, RUN_EXECUTION_ERROR, ...).
+      - name: run_duration_seconds
+        description: Total run time, seconds.
+      - name: setup_duration_seconds
+        description: Time spent starting compute, seconds (serverless start-up).
+      - name: is_success
+        description: True when the run succeeded.
+
+  - name: ops_daily_cost
+    description: >
+      Daily Databricks usage and its list-price cost per product and SKU for this workspace, from
+      system.billing. List price, not the invoice (Azure bills Databricks on the Azure invoice).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [usage_date, billing_origin_product, sku_name, usage_unit]
+    columns:
+      - name: usage_date
+        description: Usage date (UTC).
+        data_tests: [not_null]
+      - name: billing_origin_product
+        description: What used it (JOBS, SQL, DEFAULT_STORAGE, PREDICTIVE_OPTIMIZATION, ...).
+      - name: sku_name
+        description: Databricks SKU.
+      - name: usage_unit
+        description: DBU, DSU (storage) or GB.
+      - name: currency_code
+        description: Currency of the list price (USD).
+      - name: usage_quantity
+        description: Usage in usage_unit.
+      - name: list_cost
+        description: usage_quantity × the SKU's list price at the time, in currency_code.
+
+  - name: ops_data_freshness
+    description: >
+      The newest data at each layer (bronze fetch times, gold quarter-hours) and how many hours old
+      it is when queried (a view).
+    columns:
+      - name: layer
+        description: bronze or gold.
+      - name: relation_name
+        description: The table (and, for the power fact, which measure).
+        data_tests: [unique, not_null]
+      - name: newest_data_utc
+        description: Bronze, the newest fetch time (_ingested_at); gold, the newest quarter-hour with data.
+      - name: last_loaded_utc
+        description: Bronze only, when Auto Loader last appended rows (_loaded_at).
+      - name: hours_since_newest_data
+        description: Hours from newest_data_utc to the time of the query.
+
+  - name: ops_dbt_runs
+    description: One row per production dbt run with counts of built nodes and test results.
+    columns:
+      - name: invocation_id
+        description: dbt invocation ID.
+        data_tests: [unique, not_null]
+      - name: run_started_utc
+        description: When the dbt run started, UTC.
+      - name: nodes_built
+        description: Models, seeds and snapshots in the run.
+      - name: nodes_errored
+        description: Of those, how many errored.
+      - name: tests_run
+        description: Data and unit tests in the run.
+      - name: tests_failed
+        description: Tests that failed or errored.
+      - name: tests_warned
+        description: Tests that warned (e.g. price outside the SDAC limits).
+      - name: nodes_skipped
+        description: Nodes skipped because something upstream failed.
+      - name: total_execution_seconds
+        description: Sum of the nodes' execution times, seconds.
+
+  - name: ops_dbt_issues
+    description: Every node of a production dbt run that errored, failed, warned or was skipped.
+    columns:
+      - name: invocation_id
+        description: dbt invocation ID.
+      - name: run_started_utc
+        description: When the dbt run started, UTC.
+      - name: resource_type
+        description: model, seed, snapshot, test or unit_test.
+      - name: node_name
+        description: Node name.
+      - name: status
+        description: error, fail, warn or skipped.
+      - name: failures
+        description: Failing rows for a test.
+      - name: message
+        description: dbt's message for the node.
+
+exposures:
+  - name: pipeline_health
+    label: Pipeline health
+    type: dashboard
+    maturity: medium
+    description: >
+      The AI/BI dashboard for running the platform: job runs, dbt results, data freshness and cost
+      (phase 5, decision 5). Each of its datasets selects from one of these models.
+    owner:
+      name: Project owner
+    depends_on:
+      - ref('ops_job_runs')
+      - ref('ops_daily_cost')
+      - ref('ops_data_freshness')
+      - ref('ops_dbt_runs')
+      - ref('ops_dbt_issues')

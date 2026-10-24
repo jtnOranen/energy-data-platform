@@ -298,6 +298,29 @@ JSON
 )" -o none
 echo "    $SP_NAME is in the workspace admins group"
 
+echo "==> System tables for the pipeline-health dashboard"
+
+# The ops dbt models (and so the dbt job and dbt PR builds) read system.billing and system.lakeflow.
+# Only an account admin can grant on system schemas (metastore admin isn't enough), so this runs as
+# the owner, through the Unity Catalog API (no SQL warehouse needed, so it works before Terraform
+# has created one). An owner signed in with a personal Microsoft account can't reach the account
+# console to become account admin; see docs/phases/phase-5-report-monitoring.md for the way round.
+grant_system_schema () {
+  local schema="$1"
+  if dbx_rest --method patch --url "$DATABRICKS_HOST/api/2.1/unity-catalog/permissions/schema/system.$schema" \
+      --body "{\"changes\": [
+        {\"principal\": \"$APP_ID\", \"add\": [\"USE_SCHEMA\", \"SELECT\"]},
+        {\"principal\": \"$PR_APP_ID\", \"add\": [\"USE_SCHEMA\", \"SELECT\"]}
+      ]}" -o none 2>/dev/null; then
+    echo "    both service principals can read system.$schema"
+  else
+    echo "    WARNING: couldn't grant on system.$schema: the owner must be a Databricks account admin." >&2
+    echo "    The pipeline-health models will fail until this is re-run as one." >&2
+  fi
+}
+grant_system_schema billing
+grant_system_schema lakeflow
+
 echo "==> GitHub repo variables (not secrets) on ${GITHUB_OWNER}/${REPO}"
 gh variable set AZURE_CLIENT_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$APP_ID"
 gh variable set AZURE_PR_CLIENT_ID --repo "${GITHUB_OWNER}/${REPO}" --body "$PR_APP_ID"

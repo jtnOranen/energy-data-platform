@@ -66,6 +66,20 @@ time comes from the dimensions; contracts enforced.
 | `rpt_price_spikes_summary` | spike class (top 1 % / negative / other) | price-spike anatomy |
 | `rpt_price_spike_intervals` | quarter-hour in the top 1 % | the spikes, ranked, with the system's state |
 
+## Ops (dbt views, `models/ops`, in `ops`)
+
+What the `pipeline_health` dashboard reads (phase 5), recorded as a dbt exposure. Views, so they show the state at
+query time. Sources: Databricks system tables (`system.lakeflow`, `system.billing`, filtered to this workspace) and
+`ops.dbt_results`, which dbt's `on-run-end` hook fills with every production run's node results.
+
+| Model | Grain | Shows |
+| --- | --- | --- |
+| `ops_job_runs` | job run | start, end, state, duration, set-up time per run of `bronze_load`, `dbt_build`, `bronze_rebuild` |
+| `ops_daily_cost` | day × product × SKU | usage and list-price cost |
+| `ops_data_freshness` | table | newest fetch in bronze, newest quarter-hour in gold, hours since |
+| `ops_dbt_runs` | dbt run | nodes built, errors, tests run / failed / warned |
+| `ops_dbt_issues` | non-passing node | errors, failed and warning tests, skipped nodes |
+
 ## Tests
 
 | Where | Test |

@@ -24,6 +24,11 @@ models:
     reports:
       +schema: gold
       +materialized: table
+    # Views over the system tables and ops.dbt_results for the pipeline_health dashboard (phase
+    # 5): views, so the dashboard shows the state when it is opened, not at the last dbt run.
+    ops:
+      +schema: ops
+      +materialized: view
 
 seeds:
   energy:
@@ -40,3 +45,6 @@ vars:
   dim_date_end: "2030-12-31"
   # Incremental facts rebuild this many days back on each run: more than the 48-hour fetch overlap.
   lookback_days: 3
+  # The system tables are metastore-wide; the ops models keep this workspace's rows (Terraform
+  # data source azurerm_databricks_workspace.dev, workspace_id).
+  workspace_id: "7405610438268005"

@@ -1,0 +1,32 @@
+sources:
+  # Databricks system tables. Reading them needs USE SCHEMA and SELECT on the schema, which only an
+  # account admin can grant; bootstrap.sh grants them to both service principals (phase 5).
+  - name: system_lakeflow
+    description: Databricks system tables for jobs and their runs (metastore-wide).
+    database: system
+    schema: lakeflow
+    tables:
+      - name: job_run_timeline
+        description: Job runs, one row per run and time slice (long runs span several slices).
+      - name: jobs
+        description: Job definitions, one row per change (SCD), so a job's name is its latest row.
+
+  - name: system_billing
+    description: Databricks system tables for usage and list prices (account-wide).
+    database: system
+    schema: billing
+    tables:
+      - name: usage
+        description: Billable usage records (DBUs, storage) with their SKU and product.
+      - name: list_prices
+        description: List price per SKU and unit over time.
+
+  - name: ops
+    description: Pipeline operations data written by this project.
+    database: energy
+    schema: ops
+    tables:
+      - name: dbt_results
+        description: >
+          One row per node of every production dbt run, written by the on-run-end hook
+          (macros/store_dbt_results.sql).
