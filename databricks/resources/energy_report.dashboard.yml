@@ -10,3 +10,13 @@ resources:
       # need the bundle's run_as to be whoever deploys, which breaks validation on PRs (read-only
       # principal) and locally (owner); phase 5 spec, step 0 item 3.
       embed_credentials: false
+      # Per dashboard, not bundle-wide: top-level permissions make bundle validate read the
+      # deployment folder's permissions, which needs CAN_MANAGE the read-only PR principal mustn't
+      # have. It reads the dashboard for the drift check (phase 5).
+      permissions:
+        - level: CAN_MANAGE
+          service_principal_name: fa777966-7f5f-4c68-bfa2-29c733f7f8d5 # deploys
+        - level: CAN_READ
+          user_name: ${var.owner_user_name}
+        - level: CAN_READ
+          service_principal_name: 8be8f559-c088-4db5-acbf-60b95f9a6078 # read-only PR principal

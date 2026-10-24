@@ -113,8 +113,8 @@ same PR or the next one once the model is in production.
 **Drift warning.** If the published dashboard was edited in the UI (workspace admins can, despite
 the view-only permission) and the change never reached the repository:
 
-- on every PR that runs the Databricks checks, `bundle plan` (as the read-only principal) notices
-  that the dashboard's etag differs from the last deploy; the check passes with a warning
+- on every PR that runs the Databricks checks, the read-only principal compares each deployed
+  dashboard's definition with the file on `main`; a difference passes the check with a warning
   annotation and a job summary saying what to do;
 - on `main`, `bundle deploy` refuses to overwrite it and the job fails with the same explanation
   in its summary (and GitHub emails the pusher).

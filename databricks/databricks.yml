@@ -44,17 +44,6 @@ variables:
     description: SQL warehouse the dashboards query (Terraform output databricks_sql_warehouse_id).
     default: f5e7a914313e58c9
 
-# View rights on everything the bundle deploys (jobs, dashboards, the deployment folder): the
-# owner, and the read-only PR principal, whose `bundle plan` on pull requests reads the deployed
-# dashboards to warn when one was edited in the UI (phase 5).
-permissions:
-  - level: CAN_MANAGE
-    service_principal_name: fa777966-7f5f-4c68-bfa2-29c733f7f8d5 # gh-energy-data-platform, deploys
-  - level: CAN_VIEW
-    user_name: ${var.owner_user_name}
-  - level: CAN_VIEW
-    service_principal_name: 8be8f559-c088-4db5-acbf-60b95f9a6078 # gh-energy-data-platform-pr
-
 targets:
   dev:
     default: true

@@ -160,9 +160,12 @@ The dashboard `energy_report` (AI/BI, `databricks/resources/dashboards/energy_re
   and the change never made it into the repository, CI says so instead of silently overwriting it
   or failing obscurely:
   - on every PR that runs the Databricks checks, a warning annotation and job summary (instead of
-    a PR comment, which would need write rights on PRs) when the deployed dashboard was edited
-    since the last deploy: `bundle plan`, run by the read-only principal, which gets view rights
-    on everything the bundle deploys for this;
+    a PR comment, which would need write rights on PRs) when the deployed dashboard's definition
+    differs from the file on the base branch. The read-only principal fetches it (view rights on
+    the dashboards). Not `bundle plan`, which reads the bundle state, and not bundle-wide
+    permissions: both need rights on the deployment folder the read-only principal mustn't have
+    (`bundle validate` asks for CAN_MANAGE on it once top-level permissions exist; found on this
+    PR's first run);
   - on `main`, the deploy stops with the same explanation rather than overwriting, unless the
     commit itself updated the dashboard file (then the repository wins, as intended);
   - the owner gets view rights only on the deployed dashboard, so editing means cloning it to a

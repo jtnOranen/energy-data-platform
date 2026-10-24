@@ -76,34 +76,50 @@ jobs:
         if: env.IS_TRUSTED_SOURCE == 'true'
         run: databricks bundle validate -t dev
 
-      # bundle plan builds the bundle, wheel included.
-      - name: Setup uv
-        if: github.event_name == 'pull_request' && env.IS_TRUSTED_SOURCE == 'true'
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
-
-      # Drift warning (phase 5): bundle plan compares each deployed dashboard's etag with the one
-      # last deployed and warns when it was edited in the UI. The PR still passes; the warning
-      # says to pull the change into the repository before merging, since the deploy on main
-      # would stop on it (bundle deploy refuses to overwrite a remotely modified dashboard).
+      # Drift warning (phase 5): compares each deployed dashboard's definition with the file on
+      # the base branch. A difference means someone edited it in the UI since the last deploy.
+      # The PR still passes; the warning says to pull the change into the repository before
+      # merging, since the deploy on main would stop on it (bundle deploy refuses to overwrite a
+      # remotely modified dashboard). Compared with the base branch, not this PR, so a PR's own
+      # dashboard change isn't mistaken for drift. Needs only view rights on the dashboards, which
+      # the read-only principal has (not the bundle state, which would need more).
       - name: Dashboard drift check
         if: github.event_name == 'pull_request' && env.IS_TRUSTED_SOURCE == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          DEPLOYED_DIR: /Workspace/Users/fa777966-7f5f-4c68-bfa2-29c733f7f8d5/.bundle/energy/dev/resources
         run: |
-          set +e
-          out=$(databricks bundle plan -t dev 2>&1)
-          status=$?
-          echo "$out" | tail -30
-          for dashboard in $(grep -oE 'dashboard "[^"]+" has been modified remotely' <<< "$out" | cut -d'"' -f2); do
-            echo "::warning title=Dashboard ${dashboard} edited in the UI::It changed in the workspace since the last deploy and the repository doesn't have the change. Pull it in with: databricks bundle generate dashboard --resource ${dashboard} --force (databricks/README.md), or the deploy on main stops."
+          git fetch --quiet --depth=1 origin "$BASE_REF"
+          for entry in "energy_report:Energy report" "pipeline_health:Pipeline health"; do
+            key="${entry%%:*}"
+            name="${entry#*:}"
+            file="databricks/resources/dashboards/${key}.lvdash.json"
+            if ! git cat-file -e "origin/${BASE_REF}:${file}" 2>/dev/null; then
+              echo "${key}: not on ${BASE_REF} yet, nothing deployed to compare"
+              continue
+            fi
+            id=$(databricks workspace get-status "${DEPLOYED_DIR}/${name}.lvdash.json" -o json 2>/dev/null \
+              | jq -r '.resource_id // empty')
+            if [[ -z "$id" ]]; then
+              echo "${key}: not deployed yet"
+              continue
+            fi
+            deployed=$(databricks lakeview get "$id" -o json | jq -r .serialized_dashboard | jq -S .)
+            expected=$(git show "origin/${BASE_REF}:${file}" | jq -S .)
+            if [[ "$deployed" == "$expected" ]]; then
+              echo "${key}: deployed dashboard matches ${BASE_REF}"
+              continue
+            fi
+            echo "::warning title=Dashboard ${key} edited in the UI::The deployed dashboard differs from ${BASE_REF}. Pull the change in with: databricks bundle generate dashboard --resource ${key} --force (databricks/README.md), or the deploy on main stops."
             {
-              echo "### Dashboard \`${dashboard}\` was edited in the UI"
-              echo "The deployed dashboard differs from the last deploy. Pull the change into the repository before merging:"
+              echo "### Dashboard \`${key}\` was edited in the UI"
+              echo "The deployed dashboard differs from \`${BASE_REF}\`. To keep the UI edit, pull it into the repository before merging:"
               echo '```'
-              echo "databricks bundle generate dashboard --resource ${dashboard} --force"
+              echo "databricks bundle generate dashboard -t dev --resource ${key} --force"
               echo '```'
               echo "Otherwise the deploy on main stops (it won't overwrite the UI edit). See databricks/README.md."
             } >> "$GITHUB_STEP_SUMMARY"
           done
-          exit $status
 
   # Only for pushes to main, so fork PRs never reach the credentials (see ADR 0004).
   deploy:

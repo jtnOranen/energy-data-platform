@@ -9,3 +9,11 @@ resources:
       # Viewers query with their own credentials (the owner reads ops and, as account admin, the
       # system tables); see energy_report.dashboard.yml for why not embedded.
       embed_credentials: false
+      # Per dashboard, as in energy_report.dashboard.yml.
+      permissions:
+        - level: CAN_MANAGE
+          service_principal_name: fa777966-7f5f-4c68-bfa2-29c733f7f8d5 # deploys
+        - level: CAN_READ
+          user_name: ${var.owner_user_name}
+        - level: CAN_READ
+          service_principal_name: 8be8f559-c088-4db5-acbf-60b95f9a6078 # read-only PR principal
