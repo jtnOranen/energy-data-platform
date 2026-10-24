@@ -3,8 +3,8 @@
     <ops schema>.dbt_results, for the pipeline-health dashboard (phase 5, decision 2). Only
     production runs write, so the dashboard shows what the daily job did; a dev run can opt in
     with --vars '{store_dbt_results: true}' and then writes to dev_ops (the schema macro prefixes
-    it like every other schema). Source freshness isn't part of dbt build's results; the job's
-    own status shows it.
+    it like every other schema). `dbt source freshness` runs the hook too, so each source's
+    freshness status lands here as resource_type 'source'.
 -#}
 {% macro store_dbt_results(results) -%}
     {%- if not execute or not results -%}
