@@ -78,8 +78,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "# How wind and weather show up in the Finnish day-ahead price",
-                "Day-ahead prices for Finland (ENTSO-E), wind, consumption and production (Fingrid) and weather at four stations (FMI), every quarter-hour since 2024-01-01, updated daily. Local time (Europe/Helsinki)."
+                "# How wind and weather show up in the Finnish day-ahead price\n\nDay-ahead prices for Finland (ENTSO-E), wind, consumption and production (Fingrid) and weather at four stations (FMI), every quarter-hour since 2024-01-01, updated daily. Local time (Europe/Helsinki)."
               ]
             },
             "name": "overview_guide"
@@ -343,8 +342,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "## How much of the price variation does wind production explain?",
-                "r² 0.08 in 2024 and 0.20–0.39 since: wind explains a fifth to two fifths of the price variance, and each extra GW of wind lowers the price by 12–17 €/MWh."
+                "## How much of the price variation does wind production explain?\n\nr² 0.08 in 2024 and 0.20–0.39 since: wind explains a fifth to two fifths of the price variance, and each extra GW of wind lowers the price by 12–17 €/MWh."
               ]
             },
             "name": "q1_guide"
@@ -595,8 +593,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "## When does the price go negative, and what do those intervals have in common?",
-                "5 % of quarter-hours (4,960). Wind covers 36 % of consumption then (23 % otherwise); typically at night (03 local time), in summer, and 43 % of them at weekends."
+                "## When does the price go negative, and what do those intervals have in common?\n\n5 % of quarter-hours (4,960). Wind covers 36 % of consumption then (23 % otherwise); typically at night (03 local time), in summer, and 43 % of them at weekends."
               ]
             },
             "name": "q2_guide"
@@ -794,8 +791,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "## How does consumption follow temperature in winter?",
-                "Each degree colder adds about 90–145 MW of consumption (correlation −0.5 to −0.8 per winter); below −20 °C demand passes 13,000 MW."
+                "## How does consumption follow temperature in winter?\n\nEach degree colder adds about 90–145 MW of consumption (correlation −0.5 to −0.8 per winter); below −20 °C demand passes 13,000 MW."
               ]
             },
             "name": "q3_guide"
@@ -939,8 +935,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "## What do the daily and weekly price profiles look like, and did 15-minute pricing change intra-hour variation?",
-                "Weekday prices peak at 09 and 19 (1.4–1.6× the day's average) and bottom out at night; weekends average 30 €/MWh against 54. Since 15-minute pricing the quarter-hours of an hour differ by 15 €/MWh on average, more than the 8 €/MWh move from one hour to the next."
+                "## What do the daily and weekly price profiles look like, and did 15-minute pricing change intra-hour variation?\n\nWeekday prices peak at 09 and 19 (1.4–1.6× the day's average) and bottom out at night; weekends average 30 €/MWh against 54. Since 15-minute pricing the quarter-hours of an hour differ by 15 €/MWh on average, more than the 8 €/MWh move from one hour to the next."
               ]
             },
             "name": "q4_guide"
@@ -1099,8 +1094,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "## What do the most expensive quarter-hours have in common?",
-                "The top 1 % (≥ 250 €/MWh): little wind (670 MW against 2,300), Finland importing 1,900 MW, −6 °C, weekday mornings (09) in January. Negative prices are the mirror image: windy, mild and exporting."
+                "## What do the most expensive quarter-hours have in common?\n\nThe top 1 % (≥ 250 €/MWh): little wind (670 MW against 2,300), Finland importing 1,900 MW, −6 °C, weekday mornings (09) in January. Negative prices are the mirror image: windy, mild and exporting."
               ]
             },
             "name": "spikes_guide"

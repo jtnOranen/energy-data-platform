@@ -98,8 +98,9 @@ truth, and a change made only in the UI would be lost on the next deploy (CI war
 **B. Small edits in the file**
 
 Edit `resources/dashboards/energy_report.lvdash.json` directly: text boxes are under
-`multilineTextboxSpec.lines`, dataset queries under `datasets[].queryLines`, page names under
-`pages[].displayName`. Validate (`databricks bundle validate -t dev`) and open a PR. Layout by
+`multilineTextboxSpec.lines` (one Markdown string; the dashboard joins the list's items with no
+separator, so put `\n\n` between a heading and its text), dataset queries under
+`datasets[].queryLines`, page names under `pages[].displayName`. Validate (`databricks bundle validate -t dev`) and open a PR. Layout by
 hand is possible but clumsy; use A for that.
 
 **C. Numbers and logic**

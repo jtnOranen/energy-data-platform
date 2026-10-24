@@ -50,8 +50,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "# Pipeline health",
-                "Is the pipeline running, is the data fresh, what does it cost? Times in UTC. Bronze loads every 6 hours and dbt runs daily at 07:15, so bronze up to about 8 hours old is normal."
+                "# Pipeline health\n\nIs the pipeline running, is the data fresh, what does it cost? Times in UTC. Bronze loads every 6 hours and dbt runs daily at 07:15, so bronze up to about 8 hours old is normal."
               ]
             },
             "name": "runs_guide"
@@ -272,8 +271,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "## dbt runs and tests",
-                "Production runs of the daily job: the build, then the source freshness check. Issues lists every node that didn't pass; empty is good."
+                "## dbt runs and tests\n\nProduction runs of the daily job: the build, then the source freshness check. Issues lists every node that didn't pass; empty is good."
               ]
             },
             "name": "dbt_guide"
@@ -456,8 +454,7 @@
           "widget": {
             "multilineTextboxSpec": {
               "lines": [
-                "## Databricks cost (list price, USD)",
-                "From system.billing at list price; the Azure invoice is what the budget alerts watch. Development days (CI, local builds) cost more than the daily pipeline alone."
+                "## Databricks cost (list price, USD)\n\nFrom system.billing at list price; the Azure invoice is what the budget alerts watch. Development days (CI, local builds) cost more than the daily pipeline alone."
               ]
             },
             "name": "cost_guide"
