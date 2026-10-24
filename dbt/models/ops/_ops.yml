@@ -59,6 +59,10 @@ models:
         description: Usage in usage_unit.
       - name: list_cost
         description: usage_quantity × the SKU's list price at the time, in currency_code.
+      - name: list_cost_last_7d
+        description: list_cost if usage_date is within the last 7 days of the query, else null.
+      - name: list_cost_last_30d
+        description: list_cost if usage_date is within the last 30 days of the query, else null.
 
   - name: ops_data_freshness
     description: >
