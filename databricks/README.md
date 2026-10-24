@@ -41,6 +41,72 @@ the two scheduled jobs also warn when a run passes 30 minutes. A failing `dbt_bu
 data (`dbt source freshness` runs last). Function failures alert from Azure Monitor
 (`infra/modules/monitoring`).
 
+## Editing the energy report (dashboard)
+
+> Applies once the dashboard is in the bundle (phase 5, PR B2). Until then it is a draft in the
+> owner's folder (`energy_report (draft)`) and can be edited freely in the UI.
+
+**Where things live**
+
+| What | Where | Changed by |
+| --- | --- | --- |
+| Layout, visuals, titles, texts | `resources/dashboards/energy_report.lvdash.json` | a PR (exported from the UI or edited by hand) |
+| Dashboard settings (warehouse, permissions, publishing) | `resources/energy_report.dashboard.yml` | a PR, by hand |
+| Every number the dashboard shows | dbt models `dbt/models/reports/rpt_*` | a PR (dbt) |
+| The deployed, published dashboard | workspace, owned by the CI service principal | CI only, on `main` |
+
+The deployed dashboard is view-only for the owner on purpose: the repository is the source of
+truth, and a change made only in the UI would be lost on the next deploy (CI warns, see below).
+
+**Pick the way by what you change**
+
+| Change | Way |
+| --- | --- |
+| Chart type, colours, layout, a new visual on an existing dataset | A. in the UI, then export |
+| A title, a text box, a dataset's `select` | B. edit the file |
+| A number, a definition, a new column or table | C. dbt first, then A or B |
+
+**A. Visual changes in the UI**
+
+1. Branch: `git checkout -b feat/report-<what>`.
+2. In the workspace, open the published `energy_report` and **Clone** it (⋮ menu): the copy lands in
+   your folder and is yours to edit. Note its ID from the URL (`…/dashboardsv3/<id>`).
+3. Edit the copy in the UI until it looks right.
+4. Pull the copy's definition into the repository's file, from `databricks/`:
+
+   ```bash
+   export DATABRICKS_AUTH_TYPE=azure-cli BUNDLE_VAR_alert_email=<your email>
+   databricks bundle generate dashboard --existing-id <copy id> --key energy_report \
+     --dashboard-dir resources/dashboards --resource-dir resources --force
+   ```
+
+   (`--watch` keeps the file in sync while you edit, if you want to see the diff grow.)
+5. The command also rewrites `resources/energy_report.dashboard.yml` from the copy's settings;
+   keep only the definition change: `git checkout -- resources/energy_report.dashboard.yml`.
+6. Check the diff (`git diff resources/dashboards/`): datasets must still be `select … from
+   energy.gold.rpt_…`, with no calculations (phase 5, decision 1). Commit, open a PR.
+7. After the merge CI deploys and republishes. Delete your copy.
+
+**B. Small edits in the file**
+
+Edit `resources/dashboards/energy_report.lvdash.json` directly: text boxes are under
+`multilineTextboxSpec.lines`, dataset queries under `datasets[].queryLines`, page names under
+`pages[].displayName`. Validate (`databricks bundle validate -t dev`) and open a PR. Layout by
+hand is possible but clumsy; use A for that.
+
+**C. Numbers and logic**
+
+Change or add an `rpt_*` model in `dbt/models/reports/` (with its contract and tests in
+`_reports.yml`, and in `_exposures.yml` if it's new), build it locally (`dbt build -s
+rpt_<name>`, target dev), and open a PR: slim CI builds it in `pr_<n>_gold`. A new model needs a
+new dataset (`select * from energy.gold.rpt_<name>`) and its visuals, added with A or B, in the
+same PR or the next one once the model is in production.
+
+**Drift warning.** If the published dashboard was edited in the UI (workspace admins can, despite
+the view-only permission) and the change never reached the repository, CI warns on PRs and the
+`main` deploy stops with an explanation instead of overwriting it. To keep the UI change, export it
+with A (step 4, `--existing-id` of the edited dashboard); to discard it, let a deploy overwrite it.
+
 ## Run the job once by hand
 
 ```bash
