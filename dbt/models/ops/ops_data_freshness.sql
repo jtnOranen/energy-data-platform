@@ -78,15 +78,24 @@ layers as (
     from gold
 ),
 
+-- Day-ahead prices are published for the whole next delivery day, so the newest priced
+-- quarter-hour is usually in the future: that shows as hours ahead, not as negative age.
+with_age as (
+    select
+        *,
+        timestampdiff(minute, newest_data_utc, current_timestamp()) / 60.0 as age_hours
+    from layers
+),
+
 final as (
     select
         layer,
         relation_name,
         newest_data_utc,
         last_loaded_utc,
-        timestampdiff(minute, newest_data_utc, current_timestamp()) / 60.0
-            as hours_since_newest_data
-    from layers
+        greatest(age_hours, 0) as hours_since_newest_data,
+        greatest(-age_hours, 0) as hours_ahead
+    from with_age
 )
 
 select * from final

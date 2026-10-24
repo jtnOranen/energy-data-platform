@@ -75,7 +75,11 @@ models:
       - name: last_loaded_utc
         description: Bronze only, when Auto Loader last appended rows (_loaded_at).
       - name: hours_since_newest_data
-        description: Hours from newest_data_utc to the time of the query.
+        description: Hours from newest_data_utc to the time of the query; 0 when the data reaches into the future.
+      - name: hours_ahead
+        description: >
+          Hours the data already reaches past the time of the query (day-ahead prices cover the
+          next delivery day); 0 otherwise.
 
   - name: ops_dbt_runs
     description: >
