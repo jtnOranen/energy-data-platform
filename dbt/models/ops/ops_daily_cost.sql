@@ -37,7 +37,7 @@ priced as (
             and (prices.price_end_time is null or usage.usage_start_time < prices.price_end_time)
 ),
 
-final as (
+daily as (
     select
         usage_date,
         billing_origin_product,
@@ -48,6 +48,15 @@ final as (
         sum(usage_quantity * list_price_per_unit) as list_cost
     from priced
     group by usage_date, billing_origin_product, sku_name, usage_unit
+),
+
+-- Rolling windows for the dashboard's counters, relative to the day the view is queried.
+final as (
+    select
+        *,
+        if(usage_date >= date_sub(current_date(), 7), list_cost, null) as list_cost_last_7d,
+        if(usage_date >= date_sub(current_date(), 30), list_cost, null) as list_cost_last_30d
+    from daily
 )
 
 select * from final

@@ -1,0 +1,1436 @@
+{
+  "datasets": [
+    {
+      "displayName": "Q1 wind-price fit",
+      "name": "wind_price_fit",
+      "queryLines": [
+        "select * from energy.gold.rpt_wind_price_fit"
+      ]
+    },
+    {
+      "displayName": "Q1 price by wind band",
+      "name": "wind_price_bands",
+      "queryLines": [
+        "select * from energy.gold.rpt_wind_price_bands"
+      ]
+    },
+    {
+      "displayName": "Q2 negative prices summary",
+      "name": "negative_summary",
+      "queryLines": [
+        "select * from energy.gold.rpt_negative_prices_summary"
+      ]
+    },
+    {
+      "displayName": "Q2 negative prices by month and hour",
+      "name": "negative_calendar",
+      "queryLines": [
+        "select * from energy.gold.rpt_negative_prices_calendar"
+      ]
+    },
+    {
+      "displayName": "Q3 winter consumption vs temperature",
+      "name": "winter_temperature",
+      "queryLines": [
+        "select * from energy.gold.rpt_winter_consumption_temperature"
+      ]
+    },
+    {
+      "displayName": "Q4a price profiles",
+      "name": "price_profiles",
+      "queryLines": [
+        "select * from energy.gold.rpt_price_profiles"
+      ]
+    },
+    {
+      "displayName": "Q4b intra-hour spread",
+      "name": "intra_hour",
+      "queryLines": [
+        "select * from energy.gold.rpt_intra_hour_spread"
+      ]
+    },
+    {
+      "displayName": "Price spikes summary",
+      "name": "spikes_summary",
+      "queryLines": [
+        "select * from energy.gold.rpt_price_spikes_summary"
+      ]
+    },
+    {
+      "displayName": "Price spike intervals",
+      "name": "spike_intervals",
+      "queryLines": [
+        "select * from energy.gold.rpt_price_spike_intervals"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "displayName": "Overview",
+      "layout": [
+        {
+          "position": {
+            "height": 4,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "# How wind and weather show up in the Finnish day-ahead price",
+                "Day-ahead prices for Finland (ENTSO-E), wind, consumption and production (Fingrid) and weather at four stations (FMI), every quarter-hour since 2024-01-01, updated daily. Local time (Europe/Helsinki)."
+              ]
+            },
+            "name": "overview_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 4,
+            "width": 3,
+            "x": 0,
+            "y": 4
+          },
+          "widget": {
+            "name": "b6851f5c",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "wind_price_fit",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "AVG(`r_squared`)",
+                      "name": "avg(r_squared)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`year_number` = 2025"
+                    },
+                    {
+                      "expression": "`price_resolution_minutes` = 60"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(r_squared)",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 2,
+                      "type": "exact"
+                    },
+                    "type": "number-plain"
+                  }
+                }
+              },
+              "frame": {
+                "description": {
+                  "fields": [],
+                  "value": "Share of price variation explained by wind"
+                },
+                "showDescription": true,
+                "showTitle": true,
+                "title": {
+                  "fields": [],
+                  "value": "Q1 · Wind-price r² (2025, hourly)"
+                }
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 4,
+            "width": 3,
+            "x": 3,
+            "y": 4
+          },
+          "widget": {
+            "name": "kpi_negative_share",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "negative_summary",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "SUM(`share_of_intervals`)",
+                      "name": "sum(share_of_intervals)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`price_band` IN ('negative')"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(share_of_intervals)",
+                  "format": {
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-percent"
+                  }
+                }
+              },
+              "frame": {
+                "description": {
+                  "fields": [],
+                  "value": "Share of all intervals since 2024"
+                },
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Q2 · Negative-price quarter-hours"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 4,
+            "width": 3,
+            "x": 6,
+            "y": 4
+          },
+          "widget": {
+            "name": "kpi_mw_per_degree",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "winter_temperature",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "AVG(`winter_slope_mw_per_degree`)",
+                      "name": "avg(winter_slope_mw_per_degree)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(winter_slope_mw_per_degree)",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "exact"
+                    },
+                    "type": "number-plain"
+                  }
+                }
+              },
+              "frame": {
+                "description": {
+                  "fields": [],
+                  "value": "Consumption change per degree, avg across winters"
+                },
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Q3 · Winter MW per °C"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 4,
+            "width": 3,
+            "x": 9,
+            "y": 4
+          },
+          "widget": {
+            "name": "kpi_intra_hour",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "intra_hour",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "AVG(`avg_intra_hour_spread`)",
+                      "name": "avg(avg_intra_hour_spread)"
+                    }
+                  ],
+                  "filters": [
+                    {
+                      "expression": "`price_resolution_minutes` = 15"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(avg_intra_hour_spread)",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "exact"
+                    },
+                    "type": "number-plain"
+                  }
+                }
+              },
+              "frame": {
+                "description": {
+                  "fields": [],
+                  "value": "Avg max-min within the hour, 15-min pricing"
+                },
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Q4b · Intra-hour spread (€/MWh)"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "overview",
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "displayName": "1 · Wind and price",
+      "layout": [
+        {
+          "position": {
+            "height": 3,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "## How much of the price variation does wind production explain?",
+                "r² 0.08 in 2024 and 0.20–0.39 since: wind explains a fifth to two fifths of the price variance, and each extra GW of wind lowers the price by 12–17 €/MWh."
+              ]
+            },
+            "name": "q1_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 8,
+            "width": 6,
+            "x": 0,
+            "y": 3
+          },
+          "widget": {
+            "name": "8664fae2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "wind_price_bands",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`year_number`",
+                      "name": "year_number"
+                    },
+                    {
+                      "expression": "`wind_band_mw`",
+                      "name": "wind_band_mw"
+                    },
+                    {
+                      "expression": "AVG(`median_price_eur_mwh`)",
+                      "name": "avg(median_price_eur_mwh)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "fieldName": "year_number",
+                  "scale": {
+                    "colorRamp": {
+                      "mode": "scheme",
+                      "scheme": "redblue"
+                    },
+                    "type": "quantitative"
+                  }
+                },
+                "x": {
+                  "fieldName": "wind_band_mw",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "avg(median_price_eur_mwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "version": 3,
+              "widgetType": "line"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 5,
+            "width": 6,
+            "x": 6,
+            "y": 3
+          },
+          "widget": {
+            "name": "beece309",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "wind_price_fit",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`price_resolution_minutes`",
+                      "name": "price_resolution_minutes"
+                    },
+                    {
+                      "expression": "`year_number`",
+                      "name": "year_number"
+                    },
+                    {
+                      "expression": "AVG(`slope_eur_mwh_per_gw`)",
+                      "name": "avg(slope_eur_mwh_per_gw)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Price resolution (min)",
+                  "fieldName": "price_resolution_minutes",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Year",
+                  "fieldName": "year_number",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "€/MWh per GW wind",
+                  "fieldName": "avg(slope_eur_mwh_per_gw)",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "description": "Fitted change in price for each extra GW of wind, by year and price resolution",
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Price drop per GW of wind"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 3,
+            "width": 6,
+            "x": 6,
+            "y": 8
+          },
+          "widget": {
+            "name": "price_zero_wind",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "wind_price_fit",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`price_resolution_minutes`",
+                      "name": "price_resolution_minutes"
+                    },
+                    {
+                      "expression": "`year_number`",
+                      "name": "year_number"
+                    },
+                    {
+                      "expression": "AVG(`price_at_zero_wind_eur_mwh`)",
+                      "name": "avg(price_at_zero_wind_eur_mwh)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Price resolution (min)",
+                  "fieldName": "price_resolution_minutes",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Year",
+                  "fieldName": "year_number",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "€/MWh at zero wind",
+                  "fieldName": "avg(price_at_zero_wind_eur_mwh)",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "max"
+                    },
+                    "type": "number-plain"
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "description": "Fitted baseline price with no wind, by year and price resolution",
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Price at zero wind"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "q1",
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "displayName": "2 · Negative prices",
+      "layout": [
+        {
+          "position": {
+            "height": 2,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "## When does the price go negative, and what do those intervals have in common?",
+                "5 % of quarter-hours (4,960). Wind covers 36 % of consumption then (23 % otherwise); typically at night (03 local time), in summer, and 43 % of them at weekends."
+              ]
+            },
+            "name": "q2_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 0,
+            "y": 10
+          },
+          "widget": {
+            "name": "14d3a74d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "negative_summary",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "AVG(`avg_wind_share_of_consumption`)",
+                      "name": "avg(avg_wind_share_of_consumption)"
+                    },
+                    {
+                      "expression": "`price_band`",
+                      "name": "price_band"
+                    },
+                    {
+                      "expression": "AVG(`avg_wind_production_mw`)",
+                      "name": "avg(avg_wind_production_mw)"
+                    },
+                    {
+                      "expression": "AVG(`avg_consumption_mw`)",
+                      "name": "avg(avg_consumption_mw)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "extra": [
+                  {
+                    "displayName": "Wind share of consumption",
+                    "fieldName": "avg(avg_wind_share_of_consumption)",
+                    "format": {
+                      "decimalPlaces": {
+                        "places": 1,
+                        "type": "max"
+                      },
+                      "type": "number-percent"
+                    }
+                  }
+                ],
+                "x": {
+                  "fieldName": "price_band",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "axis": {
+                    "title": "MW"
+                  },
+                  "fields": [
+                    {
+                      "displayName": "Avg wind (MW)",
+                      "fieldName": "avg(avg_wind_production_mw)"
+                    },
+                    {
+                      "displayName": "Avg consumption (MW)",
+                      "fieldName": "avg(avg_consumption_mw)"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "description": "Wind share of consumption shown in tooltip",
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Conditions by price band"
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 8,
+            "width": 12,
+            "x": 0,
+            "y": 2
+          },
+          "widget": {
+            "name": "negative_heatmap",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "negative_calendar",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "AVG(`negative_share`)",
+                      "name": "avg(negative_share)"
+                    },
+                    {
+                      "expression": "`hour_of_day`",
+                      "name": "hour_of_day"
+                    },
+                    {
+                      "expression": "DATE_TRUNC(\"MONTH\", `month_start`)",
+                      "name": "monthly(month_start)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Negative share",
+                  "fieldName": "avg(negative_share)",
+                  "format": {
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-percent"
+                  },
+                  "scale": {
+                    "colorRamp": {
+                      "mode": "scheme",
+                      "scheme": "redblue"
+                    },
+                    "type": "quantitative"
+                  }
+                },
+                "x": {
+                  "fieldName": "hour_of_day",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "Month",
+                  "fieldName": "monthly(month_start)",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": {
+                  "fields": [],
+                  "value": "Negative share heatmap"
+                }
+              },
+              "version": 3,
+              "widgetType": "heatmap"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "q2",
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "displayName": "3 · Winter consumption",
+      "layout": [
+        {
+          "position": {
+            "height": 4,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "## How does consumption follow temperature in winter?",
+                "Each degree colder adds about 90–145 MW of consumption (correlation −0.5 to −0.8 per winter); below −20 °C demand passes 13,000 MW."
+              ]
+            },
+            "name": "q3_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 9,
+            "x": 0,
+            "y": 4
+          },
+          "widget": {
+            "name": "aa37e1d4",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "winter_temperature",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`winter_label`",
+                      "name": "winter_label"
+                    },
+                    {
+                      "expression": "`temperature_band_c`",
+                      "name": "temperature_band_c"
+                    },
+                    {
+                      "expression": "AVG(`avg_consumption_mw`)",
+                      "name": "avg(avg_consumption_mw)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Winter",
+                  "fieldName": "winter_label",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Temperature (°C)",
+                  "fieldName": "temperature_band_c",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "displayName": "Avg consumption (MW)",
+                  "fieldName": "avg(avg_consumption_mw)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Winter consumption vs temperature"
+              },
+              "version": 3,
+              "widgetType": "line"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 3,
+            "width": 3,
+            "x": 9,
+            "y": 4
+          },
+          "widget": {
+            "name": "q3_slope",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "winter_temperature",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "AVG(`winter_slope_mw_per_degree`)",
+                      "name": "avg(winter_slope_mw_per_degree)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "avg(winter_slope_mw_per_degree)",
+                  "format": {
+                    "abbreviation": "none",
+                    "decimalPlaces": {
+                      "places": 0,
+                      "type": "exact"
+                    },
+                    "type": "number-plain"
+                  }
+                }
+              },
+              "frame": {
+                "description": "Consumption change per degree of temperature, avg across winters",
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Winter MW per °C"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "q3",
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "displayName": "4 · Price profiles",
+      "layout": [
+        {
+          "position": {
+            "height": 3,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "## What do the daily and weekly price profiles look like, and did 15-minute pricing change intra-hour variation?",
+                "Weekday prices peak at 09 and 19 (1.4–1.6× the day's average) and bottom out at night; weekends average 30 €/MWh against 54. Since 15-minute pricing the quarter-hours of an hour differ by 15 €/MWh on average, more than the 8 €/MWh move from one hour to the next."
+              ]
+            },
+            "name": "q4_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 7,
+            "width": 6,
+            "x": 0,
+            "y": 3
+          },
+          "widget": {
+            "name": "q4profile",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "price_profiles",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`day_type`",
+                      "name": "day_type"
+                    },
+                    {
+                      "expression": "`hour_of_day`",
+                      "name": "hour_of_day"
+                    },
+                    {
+                      "expression": "AVG(`avg_price_eur_mwh`)",
+                      "name": "avg(avg_price_eur_mwh)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Day type",
+                  "fieldName": "day_type",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Local hour",
+                  "fieldName": "hour_of_day",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "displayName": "Avg price (€/MWh)",
+                  "fieldName": "avg(avg_price_eur_mwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Average price by hour"
+              },
+              "version": 3,
+              "widgetType": "line"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 7,
+            "width": 6,
+            "x": 6,
+            "y": 3
+          },
+          "widget": {
+            "name": "q4spread",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "intra_hour",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`price_resolution_minutes`",
+                      "name": "price_resolution_minutes"
+                    },
+                    {
+                      "expression": "`hour_of_day`",
+                      "name": "hour_of_day"
+                    },
+                    {
+                      "expression": "AVG(`avg_intra_hour_spread`)",
+                      "name": "avg(avg_intra_hour_spread)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Price grain (min)",
+                  "fieldName": "price_resolution_minutes",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Local hour",
+                  "fieldName": "hour_of_day",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "displayName": "Avg max − min of quarter-hours (€/MWh)",
+                  "fieldName": "avg(avg_intra_hour_spread)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Spread within the hour"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        }
+      ],
+      "name": "q4",
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "displayName": "Price spikes",
+      "layout": [
+        {
+          "position": {
+            "height": 4,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "## What do the most expensive quarter-hours have in common?",
+                "The top 1 % (≥ 250 €/MWh): little wind (670 MW against 2,300), Finland importing 1,900 MW, −6 °C, weekday mornings (09) in January. Negative prices are the mirror image: windy, mild and exporting."
+              ]
+            },
+            "name": "spikes_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 0,
+            "y": 4
+          },
+          "widget": {
+            "name": "cb016c41",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "spikes_summary",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`spike_class`",
+                      "name": "spike_class"
+                    },
+                    {
+                      "expression": "AVG(`avg_wind_production_mw`)",
+                      "name": "avg(avg_wind_production_mw)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Interval class",
+                  "fieldName": "spike_class",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "Avg wind (MW)",
+                  "fieldName": "avg(avg_wind_production_mw)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Spike wind"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 6,
+            "y": 4
+          },
+          "widget": {
+            "name": "spike_net_import",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "spikes_summary",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`spike_class`",
+                      "name": "spike_class"
+                    },
+                    {
+                      "expression": "AVG(`avg_net_import_mw`)",
+                      "name": "avg(avg_net_import_mw)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Interval class",
+                  "fieldName": "spike_class",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "Avg net import (MW)",
+                  "fieldName": "avg(avg_net_import_mw)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Spike net import"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 0,
+            "y": 10
+          },
+          "widget": {
+            "name": "spike_temperature",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "spikes_summary",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`spike_class`",
+                      "name": "spike_class"
+                    },
+                    {
+                      "expression": "AVG(`avg_temperature_c`)",
+                      "name": "avg(avg_temperature_c)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Interval class",
+                  "fieldName": "spike_class",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "Avg temperature (°C)",
+                  "fieldName": "avg(avg_temperature_c)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Spike temperature"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 6,
+            "y": 10
+          },
+          "widget": {
+            "name": "spike_weekend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "spikes_summary",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`spike_class`",
+                      "name": "spike_class"
+                    },
+                    {
+                      "expression": "AVG(`weekend_share`)",
+                      "name": "avg(weekend_share)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "x": {
+                  "displayName": "Interval class",
+                  "fieldName": "spike_class",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "displayName": "Weekend share",
+                  "fieldName": "avg(weekend_share)",
+                  "format": {
+                    "decimalPlaces": {
+                      "places": 1,
+                      "type": "max"
+                    },
+                    "type": "number-percent"
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Spike weekend share"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 8,
+            "width": 12,
+            "x": 0,
+            "y": 16
+          },
+          "widget": {
+            "name": "spike_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "spike_intervals",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "expression": "`price_rank`",
+                      "name": "price_rank"
+                    },
+                    {
+                      "expression": "`interval_start_local`",
+                      "name": "interval_start_local"
+                    },
+                    {
+                      "expression": "`price_eur_mwh`",
+                      "name": "price_eur_mwh"
+                    },
+                    {
+                      "expression": "`wind_production_mw`",
+                      "name": "wind_production_mw"
+                    },
+                    {
+                      "expression": "`consumption_mw`",
+                      "name": "consumption_mw"
+                    },
+                    {
+                      "expression": "`net_import_mw`",
+                      "name": "net_import_mw"
+                    },
+                    {
+                      "expression": "`temperature_c`",
+                      "name": "temperature_c"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "price_rank"
+                  },
+                  {
+                    "fieldName": "interval_start_local"
+                  },
+                  {
+                    "fieldName": "price_eur_mwh"
+                  },
+                  {
+                    "fieldName": "wind_production_mw"
+                  },
+                  {
+                    "fieldName": "consumption_mw"
+                  },
+                  {
+                    "fieldName": "net_import_mw"
+                  },
+                  {
+                    "fieldName": "temperature_c"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top 1% spike intervals"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "spikes",
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ]
+}

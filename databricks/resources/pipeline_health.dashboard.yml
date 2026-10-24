@@ -1,0 +1,11 @@
+# The pipeline-health dashboard (phase 5): job runs, dbt results, data freshness and cost. Every
+# dataset selects from a dbt ops_* view; edited like the report (databricks/README.md).
+resources:
+  dashboards:
+    pipeline_health:
+      display_name: Pipeline health
+      warehouse_id: ${var.warehouse_id}
+      file_path: dashboards/pipeline_health.lvdash.json
+      # Viewers query with their own credentials (the owner reads ops and, as account admin, the
+      # system tables); see energy_report.dashboard.yml for why not embedded.
+      embed_credentials: false

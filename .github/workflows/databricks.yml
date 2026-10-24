@@ -18,6 +18,7 @@ env:
   # Where job failures are emailed (phase 5). A repository variable, not in the files: the repo is
   # public (same value as Terraform's alert_email).
   BUNDLE_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+  BUNDLE_VAR_owner_user_name: ${{ vars.OWNER }}
   # Same fork-PR gate as terraform.yml: only this repository's own branches get the OIDC token.
   IS_TRUSTED_SOURCE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
@@ -75,6 +76,35 @@ jobs:
         if: env.IS_TRUSTED_SOURCE == 'true'
         run: databricks bundle validate -t dev
 
+      # bundle plan builds the bundle, wheel included.
+      - name: Setup uv
+        if: github.event_name == 'pull_request' && env.IS_TRUSTED_SOURCE == 'true'
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+
+      # Drift warning (phase 5): bundle plan compares each deployed dashboard's etag with the one
+      # last deployed and warns when it was edited in the UI. The PR still passes; the warning
+      # says to pull the change into the repository before merging, since the deploy on main
+      # would stop on it (bundle deploy refuses to overwrite a remotely modified dashboard).
+      - name: Dashboard drift check
+        if: github.event_name == 'pull_request' && env.IS_TRUSTED_SOURCE == 'true'
+        run: |
+          set +e
+          out=$(databricks bundle plan -t dev 2>&1)
+          status=$?
+          echo "$out" | tail -30
+          for dashboard in $(grep -oE 'dashboard "[^"]+" has been modified remotely' <<< "$out" | cut -d'"' -f2); do
+            echo "::warning title=Dashboard ${dashboard} edited in the UI::It changed in the workspace since the last deploy and the repository doesn't have the change. Pull it in with: databricks bundle generate dashboard --resource ${dashboard} --force (databricks/README.md), or the deploy on main stops."
+            {
+              echo "### Dashboard \`${dashboard}\` was edited in the UI"
+              echo "The deployed dashboard differs from the last deploy. Pull the change into the repository before merging:"
+              echo '```'
+              echo "databricks bundle generate dashboard --resource ${dashboard} --force"
+              echo '```'
+              echo "Otherwise the deploy on main stops (it won't overwrite the UI edit). See databricks/README.md."
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit $status
+
   # Only for pushes to main, so fork PRs never reach the credentials (see ADR 0004).
   deploy:
     name: bundle deploy
@@ -94,6 +124,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the deploy step diffs this push's commits
 
       - name: Setup uv (builds the wheel)
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
@@ -101,5 +133,32 @@ jobs:
       - name: Setup Databricks CLI
         uses: databricks/setup-cli@2bf4520fd10723ed5a22eca62a8c8a63714a7ba9 # v1.21.0
 
+      # If a dashboard was edited in the UI since the last deploy, bundle deploy stops instead of
+      # overwriting it (phase 5 drift warning). When this push changed a dashboard's file, the
+      # repository is meant to win (e.g. a UI edit pulled in with bundle generate), so the deploy
+      # is forced; the CLI requires that even when the file now matches the UI.
       - name: Bundle deploy
-        run: databricks bundle deploy -t dev
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -o pipefail
+          force=""
+          if git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA" -- resources/dashboards/ | grep -q .; then
+            force="--force"
+            echo "Dashboard files changed in this push: deploying with --force (the repository wins)."
+          fi
+          databricks bundle deploy -t dev $force 2>&1 | tee deploy.log
+
+      - name: Explain a dashboard drift stop
+        if: failure()
+        run: |
+          if grep -q "has been modified remotely" deploy.log; then
+            {
+              echo "### Deploy stopped: a dashboard was edited in the UI"
+              echo "The deployed dashboard changed in the workspace since the last deploy, and this commit doesn't contain the change."
+              echo "- Keep the UI edit: \`databricks bundle generate dashboard --resource <name> --force\`, commit, PR."
+              echo "- Discard it: commit any change to the dashboard's file (e.g. its text); a push that changes it deploys with \`--force\`."
+              echo "See databricks/README.md, \"Editing the energy report\"."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Dashboard edited in the UI::See the job summary."
+          fi

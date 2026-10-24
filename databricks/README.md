@@ -25,14 +25,18 @@ CI deploys on every push to `main` that touches `databricks/` or `dbt/`
 (`.github/workflows/databricks.yml`), as the CI service principal with GitHub OIDC. Don't deploy from your own machine: the bundle's root
 path and `run_as` are the service principal's.
 
-Validate locally (as yourself, through `az login`). The bundle needs the alert address, which isn't
-in the repository (it's public); CI takes it from the `ALERT_EMAIL` repository variable:
+Validate locally (as yourself, through `az login`). The bundle needs two addresses that aren't in
+the repository (it's public); CI takes them from the `ALERT_EMAIL` and `OWNER` repository
+variables:
 
 ```bash
 cd databricks
-export BUNDLE_VAR_alert_email=<your email>
+export BUNDLE_VAR_alert_email=<alert email> BUNDLE_VAR_owner_user_name=<your Databricks user name>
 DATABRICKS_AUTH_TYPE=azure-cli databricks bundle validate -t dev
 ```
+
+(It recommends adding you as `CAN_MANAGE`; that's because you, not the service principal, are the
+one validating. CI deploys as the service principal, which is in the permissions.)
 
 ## Alerts
 
@@ -43,8 +47,10 @@ data (`dbt source freshness` runs last). Function failures alert from Azure Moni
 
 ## Editing the energy report (dashboard)
 
-> Applies once the dashboard is in the bundle (phase 5, PR B2). Until then it is a draft in the
-> owner's folder (`energy_report (draft)`) and can be edited freely in the UI.
+The same applies to `pipeline_health` (its files are `pipeline_health.*`, its datasets select from
+`energy.ops.ops_*`). Both are published dashboards in the bundle; viewers query with their own
+credentials (`embed_credentials: false`, so the owner needs read access to what they show, which
+they have).
 
 **Where things live**
 
@@ -75,8 +81,9 @@ truth, and a change made only in the UI would be lost on the next deploy (CI war
 4. Pull the copy's definition into the repository's file, from `databricks/`:
 
    ```bash
-   export DATABRICKS_AUTH_TYPE=azure-cli BUNDLE_VAR_alert_email=<your email>
-   databricks bundle generate dashboard --existing-id <copy id> --key energy_report \
+   export DATABRICKS_AUTH_TYPE=azure-cli
+   export BUNDLE_VAR_alert_email=<alert email> BUNDLE_VAR_owner_user_name=<your user name>
+   databricks bundle generate dashboard -t dev --existing-id <copy id> --key energy_report \
      --dashboard-dir resources/dashboards --resource-dir resources --force
    ```
 
@@ -85,7 +92,8 @@ truth, and a change made only in the UI would be lost on the next deploy (CI war
    keep only the definition change: `git checkout -- resources/energy_report.dashboard.yml`.
 6. Check the diff (`git diff resources/dashboards/`): datasets must still be `select … from
    energy.gold.rpt_…`, with no calculations (phase 5, decision 1). Commit, open a PR.
-7. After the merge CI deploys and republishes. Delete your copy.
+7. After the merge CI deploys and republishes (a push that changes a dashboard file deploys with
+   `--force`: the repository wins). Delete your copy.
 
 **B. Small edits in the file**
 
@@ -103,9 +111,17 @@ new dataset (`select * from energy.gold.rpt_<name>`) and its visuals, added with
 same PR or the next one once the model is in production.
 
 **Drift warning.** If the published dashboard was edited in the UI (workspace admins can, despite
-the view-only permission) and the change never reached the repository, CI warns on PRs and the
-`main` deploy stops with an explanation instead of overwriting it. To keep the UI change, export it
-with A (step 4, `--existing-id` of the edited dashboard); to discard it, let a deploy overwrite it.
+the view-only permission) and the change never reached the repository:
+
+- on every PR that runs the Databricks checks, `bundle plan` (as the read-only principal) notices
+  that the dashboard's etag differs from the last deploy; the check passes with a warning
+  annotation and a job summary saying what to do;
+- on `main`, `bundle deploy` refuses to overwrite it and the job fails with the same explanation
+  in its summary (and GitHub emails the pusher).
+
+To keep the UI change: `databricks bundle generate dashboard --resource energy_report --force`
+pulls the deployed version into the file; commit it, and the push deploys with `--force`. To
+discard it: commit any change to the dashboard's file (the repository's version then wins).
 
 ## Run the job once by hand
 
