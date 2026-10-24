@@ -68,9 +68,21 @@ or streaming views: gold updates daily (ADR 0014), so the report does too.
    job can tell, before deploying, that the deployed dashboard differs from the repository's file
    (its etag against the one the bundle last deployed, or the serialized content), for the drift
    warning below.
+   **Checked 2026-10-24** (CLI v1.21.0 and its source, `check_dashboards_modified_remotely.go`):
+   the bundle stores each dashboard's etag at deploy; `bundle deploy` fails with "dashboard … has
+   been modified remotely … will be overwritten on deploy" when the deployed etag differs, unless
+   `--force`, and `bundle plan` reports the same as a warning. `--force` is needed even after the
+   UI edit was pulled into the file, so the CI deploys with `--force` when the push changed a
+   dashboard file (the repository wins, as intended) and without it otherwise (a UI edit stops the
+   deploy). `bundle generate dashboard --existing-id … --key …` exported both drafts.
 3. **Whose rights a published dashboard uses:** with embedded credentials, queries run as the
    publisher, here the CI principal; viewers need only view permission. Confirm that, and that the
-   owner can view it.
+   owner can view it. **Checked 2026-10-24:** not possible here. With `embed_credentials: true`
+   the bundle's `run_as` must be whoever deploys ("dashboards with embed_credentials set to true
+   do not support a setting a run_as user that is different from the owner"), which fails
+   validation on PRs (read-only principal) and locally (owner). So `embed_credentials: false`:
+   viewers query with their own rights. The owner, the only viewer, reads gold, ops and (as
+   account admin) the system tables; another viewer would need those grants.
 4. **dbt results in a table:** an `on-run-end` hook gets `results` (status, timing, failures per
    node) in dbt 1.12; confirm the fields and that a macro can insert them into a Delta table in the
    same run, on the job's serverless dbt task.
@@ -147,9 +159,13 @@ The dashboard `energy_report` (AI/BI, `databricks/resources/dashboards/energy_re
 - **Drift warning** (owner's request, 2026-10-24): if the deployed dashboard was edited in the UI
   and the change never made it into the repository, CI says so instead of silently overwriting it
   or failing obscurely:
-  - on every PR that runs the Databricks checks, a warning annotation (and PR comment) when the
-    deployed dashboard differs from the file on `main`: "edited in the UI since the last deploy;
-    pull the changes with `bundle generate` before merging, or they are overwritten";
+  - on every PR that runs the Databricks checks, a warning annotation and job summary (instead of
+    a PR comment, which would need write rights on PRs) when the deployed dashboard's definition
+    differs from the file on the base branch. The read-only principal fetches it (view rights on
+    the dashboards). Not `bundle plan`, which reads the bundle state, and not bundle-wide
+    permissions: both need rights on the deployment folder the read-only principal mustn't have
+    (`bundle validate` asks for CAN_MANAGE on it once top-level permissions exist; found on this
+    PR's first run);
   - on `main`, the deploy stops with the same explanation rather than overwriting, unless the
     commit itself updated the dashboard file (then the repository wins, as intended);
   - the owner gets view rights only on the deployed dashboard, so editing means cloning it to a

@@ -1,0 +1,624 @@
+{
+  "datasets": [
+    {
+      "displayName": "Job runs",
+      "name": "job_runs",
+      "queryLines": [
+        "select * from energy.ops.ops_job_runs"
+      ]
+    },
+    {
+      "displayName": "Daily cost",
+      "name": "daily_cost",
+      "queryLines": [
+        "select * from energy.ops.ops_daily_cost"
+      ]
+    },
+    {
+      "displayName": "Data freshness",
+      "name": "freshness",
+      "queryLines": [
+        "select * from energy.ops.ops_data_freshness"
+      ]
+    },
+    {
+      "displayName": "dbt runs",
+      "name": "dbt_runs",
+      "queryLines": [
+        "select * from energy.ops.ops_dbt_runs order by run_started_utc desc"
+      ]
+    },
+    {
+      "displayName": "dbt issues",
+      "name": "dbt_issues",
+      "queryLines": [
+        "select * from energy.ops.ops_dbt_issues order by run_started_utc desc"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "displayName": "Runs",
+      "layout": [
+        {
+          "position": {
+            "height": 4,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Pipeline health",
+                "Is the pipeline running, is the data fresh, what does it cost? Times in UTC. Bronze loads every 6 hours and dbt runs daily at 07:15, so bronze up to about 8 hours old is normal."
+              ]
+            },
+            "name": "runs_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 0,
+            "y": 4
+          },
+          "widget": {
+            "name": "5b3a5aab",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "job_runs",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`result_state`",
+                      "name": "result_state"
+                    },
+                    {
+                      "expression": "DATE_TRUNC(\"DAY\", `run_start_utc`)",
+                      "name": "daily(run_start_utc)"
+                    },
+                    {
+                      "expression": "COUNT(`run_id`)",
+                      "name": "count(run_id)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "fieldName": "result_state",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "fieldName": "daily(run_start_utc)",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "count(run_id)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Daily job runs by result"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 6,
+            "y": 4
+          },
+          "widget": {
+            "name": "run_duration_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "job_runs",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`job_name`",
+                      "name": "job_name"
+                    },
+                    {
+                      "expression": "DATE_TRUNC(\"DAY\", `run_start_utc`)",
+                      "name": "daily(run_start_utc)"
+                    },
+                    {
+                      "expression": "AVG(`run_duration_seconds`)",
+                      "name": "avg(run_duration_seconds)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "fieldName": "job_name",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "fieldName": "daily(run_start_utc)",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "displayName": "Avg run duration (s)",
+                  "fieldName": "avg(run_duration_seconds)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Run duration by job"
+              },
+              "version": 3,
+              "widgetType": "line"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 12,
+            "x": 0,
+            "y": 10
+          },
+          "widget": {
+            "name": "freshness_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "freshness",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "expression": "`layer`",
+                      "name": "layer"
+                    },
+                    {
+                      "expression": "`relation_name`",
+                      "name": "relation_name"
+                    },
+                    {
+                      "expression": "`newest_data_utc`",
+                      "name": "newest_data_utc"
+                    },
+                    {
+                      "expression": "`hours_since_newest_data`",
+                      "name": "hours_since_newest_data"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "layer"
+                  },
+                  {
+                    "fieldName": "relation_name",
+                    "useForSearch": true
+                  },
+                  {
+                    "fieldName": "newest_data_utc"
+                  },
+                  {
+                    "fieldName": "hours_since_newest_data"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Data freshness"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "runs",
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "displayName": "dbt",
+      "layout": [
+        {
+          "position": {
+            "height": 2,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "## dbt runs and tests",
+                "Production runs of the daily job: the build, then the source freshness check. Issues lists every node that didn't pass; empty is good."
+              ]
+            },
+            "name": "dbt_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 12,
+            "x": 0,
+            "y": 8
+          },
+          "widget": {
+            "name": "7c33b3e2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dbt_runs",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "expression": "`run_started_utc`",
+                      "name": "run_started_utc"
+                    },
+                    {
+                      "expression": "`nodes_built`",
+                      "name": "nodes_built"
+                    },
+                    {
+                      "expression": "`tests_run`",
+                      "name": "tests_run"
+                    },
+                    {
+                      "expression": "`tests_failed`",
+                      "name": "tests_failed"
+                    },
+                    {
+                      "expression": "`tests_warned`",
+                      "name": "tests_warned"
+                    },
+                    {
+                      "expression": "`total_execution_seconds`",
+                      "name": "total_execution_seconds"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "run_started_utc"
+                  },
+                  {
+                    "fieldName": "nodes_built"
+                  },
+                  {
+                    "fieldName": "tests_run"
+                  },
+                  {
+                    "fieldName": "tests_failed"
+                  },
+                  {
+                    "fieldName": "tests_warned"
+                  },
+                  {
+                    "fieldName": "total_execution_seconds"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "dbt runs"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 12,
+            "x": 0,
+            "y": 2
+          },
+          "widget": {
+            "name": "dbt_issues_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "dbt_issues",
+                  "disaggregated": true,
+                  "fields": [
+                    {
+                      "expression": "`run_started_utc`",
+                      "name": "run_started_utc"
+                    },
+                    {
+                      "expression": "`resource_type`",
+                      "name": "resource_type"
+                    },
+                    {
+                      "expression": "`node_name`",
+                      "name": "node_name"
+                    },
+                    {
+                      "expression": "`status`",
+                      "name": "status"
+                    },
+                    {
+                      "expression": "`failures`",
+                      "name": "failures"
+                    },
+                    {
+                      "expression": "`message`",
+                      "name": "message"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "run_started_utc"
+                  },
+                  {
+                    "fieldName": "resource_type"
+                  },
+                  {
+                    "fieldName": "node_name",
+                    "useForSearch": true
+                  },
+                  {
+                    "fieldName": "status"
+                  },
+                  {
+                    "fieldName": "failures"
+                  },
+                  {
+                    "fieldName": "message"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "dbt issues"
+              },
+              "version": 2,
+              "widgetType": "table"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "dbt",
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "displayName": "Cost",
+      "layout": [
+        {
+          "position": {
+            "height": 4,
+            "width": 12,
+            "x": 0,
+            "y": 0
+          },
+          "widget": {
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Databricks cost (list price, USD)",
+                "From system.billing at list price; the Azure invoice is what the budget alerts watch. Development days (CI, local builds) cost more than the daily pipeline alone."
+              ]
+            },
+            "name": "cost_guide"
+          }
+        },
+        {
+          "position": {
+            "height": 6,
+            "width": 6,
+            "x": 0,
+            "y": 4
+          },
+          "widget": {
+            "name": "5f6e6a82",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "daily_cost",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "`billing_origin_product`",
+                      "name": "billing_origin_product"
+                    },
+                    {
+                      "expression": "`usage_date`",
+                      "name": "usage_date"
+                    },
+                    {
+                      "expression": "SUM(`list_cost`)",
+                      "name": "sum(list_cost)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "color": {
+                  "displayName": "Product",
+                  "fieldName": "billing_origin_product",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "x": {
+                  "displayName": "Usage date",
+                  "fieldName": "usage_date",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "displayName": "List cost (USD)",
+                  "fieldName": "sum(list_cost)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Daily cost by product"
+              },
+              "version": 3,
+              "widgetType": "bar"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 3,
+            "width": 6,
+            "x": 6,
+            "y": 4
+          },
+          "widget": {
+            "name": "cost_7d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "daily_cost",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "SUM(`list_cost_last_7d`)",
+                      "name": "sum(list_cost_last_7d)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(list_cost_last_7d)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Cost last 7 days"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        },
+        {
+          "position": {
+            "height": 3,
+            "width": 6,
+            "x": 6,
+            "y": 7
+          },
+          "widget": {
+            "name": "cost_30d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "daily_cost",
+                  "disaggregated": false,
+                  "fields": [
+                    {
+                      "expression": "SUM(`list_cost_last_30d`)",
+                      "name": "sum(list_cost_last_30d)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "data": {
+                "queryName": "main_query"
+              },
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(list_cost_last_30d)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Cost last 30 days"
+              },
+              "version": 2,
+              "widgetType": "counter"
+            }
+          }
+        }
+      ],
+      "layoutVersion": "GRID_V1",
+      "name": "cost",
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ]
+}

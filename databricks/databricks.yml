@@ -36,6 +36,13 @@ variables:
       Where job failures are emailed. No default: the repo is public, so CI sets it from the
       ALERT_EMAIL repository variable (BUNDLE_VAR_alert_email); locally pass
       --var alert_email=... or set the same environment variable.
+  owner_user_name:
+    description: >
+      The owner's Databricks user name (an email), who can view everything the bundle deploys.
+      No default for the same reason as alert_email; CI sets it from the OWNER repository variable.
+  warehouse_id:
+    description: SQL warehouse the dashboards query (Terraform output databricks_sql_warehouse_id).
+    default: f5e7a914313e58c9
 
 targets:
   dev:
