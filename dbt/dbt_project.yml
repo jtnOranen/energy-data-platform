@@ -2,6 +2,11 @@ name: energy
 version: "1.0.0"
 profile: energy
 
+# Every production run's node results into ops.dbt_results, for the pipeline-health dashboard
+# (phase 5, decision 2; macros/store_dbt_results.sql).
+on-run-end:
+  - "{{ store_dbt_results(results) }}"
+
 # Silver holds staging, intermediate, the seed and the snapshot; gold the star schema. Terraform
 # creates both schemas; generate_schema_name decides the real name per target.
 models:

@@ -65,6 +65,14 @@ resource "databricks_schema" "gold" {
   comment      = "dbt star schema at a 15-minute grain, for the report."
 }
 
+# Operational data about the pipeline itself, for the pipeline-health dashboard (phase 5): the
+# results of every production dbt run, written by dbt's on-run-end hook.
+resource "databricks_schema" "ops" {
+  catalog_name = databricks_catalog.this.name
+  name         = "ops"
+  comment      = "Pipeline operations data: dbt run results for the pipeline-health dashboard."
+}
+
 # Auto Loader checkpoints and schema tracking, one directory per bronze table.
 resource "databricks_volume" "checkpoints" {
   catalog_name = databricks_catalog.this.name

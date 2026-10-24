@@ -49,6 +49,14 @@ databricks bundle run -t dev dbt_build
 databricks bundle run -t dev dbt_build --params build_flags=--full-refresh
 ```
 
+## Run results (`ops.dbt_results`)
+
+An `on-run-end` hook (`macros/store_dbt_results.sql`) writes one row per node of every production
+run (models, seeds, snapshot, tests, unit tests: status, duration, failing rows, message) to
+`energy.ops.dbt_results`, for the pipeline-health dashboard (phase 5, decision 2). Other targets
+skip it; to try it locally, `uv run dbt build --vars '{store_dbt_results: true}'` writes to
+`dev_ops.dbt_results` instead.
+
 ## Report models (`models/reports/`)
 
 The report questions (`docs/roadmap.md`) and the price-spike anatomy as tested tables in `gold`
