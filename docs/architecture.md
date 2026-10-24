@@ -50,7 +50,8 @@ Terraform creates every Azure and Databricks resource. GitHub Actions tests ever
 | Databricks Auto Loader job | Raw files → bronze Delta tables | Serverless, `availableNow` run every 6 hours; explicit schemas with `_rescued_data`; adds `_ingested_at`, `_source_file`, `_loaded_at` |
 | dbt (`dbt/`) | bronze → silver → gold | dbt-databricks adapter, serverless SQL warehouse |
 | Databricks Workflows | Orchestration: `bronze_load` every 6 hours, `dbt_build` once a day after it | Defined in a Databricks Asset Bundle; dbt task on serverless jobs compute (ADR 0014) |
-| AI/BI dashboard | Report on gold | Defined in the bundle, screenshots in README |
+| AI/BI dashboards | `Energy report` on the gold `rpt_*` models; `Pipeline health` on the `ops_*` views (job runs, dbt results, freshness, cost) | Defined in the bundle (`databricks/resources/dashboards`), deployed by CI; datasets only select from dbt models |
+| Monitoring | Failure alerts by email: Databricks job notifications, an Azure Monitor log alert on the functions (2 failures in 3 h), dbt source freshness, budget alerts | Terraform `modules/monitoring`, bundle job settings |
 | Terraform (`infra/`) | All infrastructure | Remote state in a separately bootstrapped storage account |
 | GitHub Actions (`.github/`) | CI on PR, CD on `main` | One `ci.yml` with a required gate check; OIDC to Azure, no long-lived secrets |
 
