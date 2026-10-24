@@ -88,6 +88,9 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           DEPLOYED_DIR: /Workspace/Users/fa777966-7f5f-4c68-bfa2-29c733f7f8d5/.bundle/energy/dev/resources
+          # The workspace stores a text box's lines joined into one string; compare in that form,
+          # with keys sorted (checked against the first deploy: nothing else differs).
+          NORMALIZE: 'walk(if type == "object" and (.lines | type) == "array" then .lines = [.lines | join("")] else . end)'
         run: |
           git fetch --quiet --depth=1 origin "$BASE_REF"
           for entry in "energy_report:Energy report" "pipeline_health:Pipeline health"; do
@@ -104,8 +107,8 @@ jobs:
               echo "${key}: not deployed yet"
               continue
             fi
-            deployed=$(databricks lakeview get "$id" -o json | jq -r .serialized_dashboard | jq -S .)
-            expected=$(git show "origin/${BASE_REF}:${file}" | jq -S .)
+            deployed=$(databricks lakeview get "$id" -o json | jq -r .serialized_dashboard | jq -S "$NORMALIZE")
+            expected=$(git show "origin/${BASE_REF}:${file}" | jq -S "$NORMALIZE")
             if [[ "$deployed" == "$expected" ]]; then
               echo "${key}: deployed dashboard matches ${BASE_REF}"
               continue
