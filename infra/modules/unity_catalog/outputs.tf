@@ -13,6 +13,11 @@ output "gold_schema_name" {
   value       = databricks_schema.gold.name
 }
 
+output "ops_schema_name" {
+  description = "Name of the ops schema (dbt run results)."
+  value       = databricks_schema.ops.name
+}
+
 output "checkpoints_volume_path" {
   description = "Path of the Auto Loader checkpoints volume."
   value       = "/Volumes/${databricks_volume.checkpoints.catalog_name}/${databricks_volume.checkpoints.schema_name}/${databricks_volume.checkpoints.name}"
