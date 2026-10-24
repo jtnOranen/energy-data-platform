@@ -12,7 +12,9 @@ models:
         description: Databricks job ID.
         data_tests: [not_null]
       - name: job_name
-        description: The job's current name (bronze_load, dbt_build, bronze_rebuild).
+        description: >
+          The job's current name (bronze_load, dbt_build, bronze_rebuild), or "one-time run (job
+          <id>)" for a submitted run without a job definition.
       - name: run_id
         description: Databricks run ID.
         data_tests: [not_null]
@@ -76,13 +78,19 @@ models:
         description: Hours from newest_data_utc to the time of the query.
 
   - name: ops_dbt_runs
-    description: One row per production dbt run with counts of built nodes and test results.
+    description: >
+      One row per production dbt command (the daily build and its source freshness check) with
+      counts of built nodes, test results and stale sources.
     columns:
       - name: invocation_id
         description: dbt invocation ID.
         data_tests: [unique, not_null]
       - name: run_started_utc
-        description: When the dbt run started, UTC.
+        description: When the dbt command started, UTC.
+      - name: command
+        description: build or source freshness.
+        data_tests:
+          - accepted_values: {arguments: {values: [build, source freshness]}}
       - name: nodes_built
         description: Models, seeds and snapshots in the run.
       - name: nodes_errored
@@ -93,6 +101,10 @@ models:
         description: Tests that failed or errored.
       - name: tests_warned
         description: Tests that warned (e.g. price outside the SDAC limits).
+      - name: sources_checked
+        description: Sources whose freshness was checked (source freshness runs).
+      - name: sources_stale
+        description: Of those, how many were past their warn or error threshold.
       - name: nodes_skipped
         description: Nodes skipped because something upstream failed.
       - name: total_execution_seconds

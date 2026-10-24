@@ -40,7 +40,8 @@ runs as (
 final as (
     select
         runs.job_id,
-        coalesce(job_names.job_name, runs.job_id) as job_name,
+        -- One-time runs (submitted, not a defined job) have no row in the jobs table.
+        coalesce(job_names.job_name, concat('one-time run (job ', runs.job_id, ')')) as job_name,
         runs.run_id,
         runs.run_start_utc,
         runs.run_end_utc,
