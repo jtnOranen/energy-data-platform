@@ -45,7 +45,10 @@ or streaming views: gold updates daily (ADR 0014), so the report does too.
 2. **Dashboards in the bundle:** the `dashboards` resource (`file_path` to a `.lv.json`,
    `warehouse_id`, `embed_credentials`, permissions) and `databricks bundle generate dashboard
    --existing-id` to export a UI draft, with the CLI version CI pins. What happens on deploy when
-   the dashboard was edited in the UI since (the bundle warns about remote changes)?
+   the dashboard was edited in the UI since (the bundle warns about remote changes)? And how a CI
+   job can tell, before deploying, that the deployed dashboard differs from the repository's file
+   (its etag against the one the bundle last deployed, or the serialized content), for the drift
+   warning below.
 3. **Whose rights a published dashboard uses:** with embedded credentials, queries run as the
    publisher, here the CI principal; viewers need only view permission. Confirm that, and that the
    owner can view it.
@@ -118,6 +121,21 @@ The dashboard `energy_report` (AI/BI, `databricks/resources/dashboards/energy_re
 - Each dataset is a `select` from one report model, no logic in the dashboard (decision 1).
 - Deployed by the bundle, published with embedded credentials (step 0 item 3), the owner can view.
   Local time throughout (the report layer is where UTC becomes `Europe/Helsinki`).
+- **Editing:** the repository's `.lv.json` is the source of truth. Layout changes are made in the
+  UI and pulled into the file with `databricks bundle generate dashboard --resource energy_report`
+  (`--watch` while editing), then go through a PR; small text or query changes can be made in the
+  file directly; numbers and logic change in the `rpt_*` models.
+- **Drift warning** (owner's request, 2026-10-24): if the deployed dashboard was edited in the UI
+  and the change never made it into the repository, CI says so instead of silently overwriting it
+  or failing obscurely:
+  - on every PR that runs the Databricks checks, a warning annotation (and PR comment) when the
+    deployed dashboard differs from the file on `main`: "edited in the UI since the last deploy;
+    pull the changes with `bundle generate` before merging, or they are overwritten";
+  - on `main`, the deploy stops with the same explanation rather than overwriting, unless the
+    commit itself updated the dashboard file (then the repository wins, as intended);
+  - the owner gets view rights only on the deployed dashboard, so editing means cloning it to a
+    draft first. That alone isn't airtight (workspace admins can edit any dashboard), which is
+    why the check exists. The mechanism follows step 0 item 2.
 
 ### C. Pipeline health
 
