@@ -6,10 +6,83 @@
 > explains up to two fifths of the price variance, and the most expensive quarter-hours are cold, calm
 > weekday mornings when Finland imports.
 
-**The main goal of this project is to train and showcase end-to-end data pipeline utilizing infrastructure-as-a-code, Azure environment and Databricks**. The focus is on the data engineering side of the project rather than on the visualisation and end report.
 How wind power and weather show up in the Finnish day-ahead electricity price — an end-to-end data platform on
 Azure and Databricks, built with Terraform, dbt and GitHub Actions. Architecture and data flow:
 [docs/architecture.md](docs/architecture.md).
+
+## What this project is for
+
+**The main goal of this project is to train and showcase an end-to-end data pipeline built with
+infrastructure as code, on Azure and Databricks.** The focus is on the data engineering, not on the
+visualisation and the final report. What I set out to learn, and where it shows:
+
+- **Infrastructure as code:** every Azure and Databricks resource in Terraform, with remote state; only
+  what needs owner rights (state storage, identities, the workspace) in a bootstrap script
+  ([infra/](infra), [ADR 0007](docs/adr/0007-resource-groups-bootstrapped-for-least-privilege.md)).
+- **Secure CI/CD:** GitHub Actions with OIDC instead of secrets, a read-only identity for pull requests and
+  a deploying one for `main`, one required gate check, SHA-pinned actions
+  ([ADR 0015](docs/adr/0015-single-ci-entry-point-with-a-gate-check.md),
+  [ADR 0016](docs/adr/0016-read-only-identity-for-pull-requests.md)).
+- **Ingestion:** idempotent Azure Functions fetching three APIs into an immutable landing zone, with an
+  overlap window for late data ([ingestion/](ingestion)).
+- **Lakehouse on Databricks:** Unity Catalog, Auto Loader into bronze, serverless compute, jobs as an
+  Asset Bundle ([databricks/](databricks)).
+- **Data modelling and quality with dbt:** staging → intermediate → a star schema in gold, unit tests,
+  contracts, snapshots, and slim CI that builds only changed models in a pull-request schema
+  ([dbt/](dbt)).
+- **Operating it:** failure alerts, data freshness, run results and cost on a health dashboard, and
+  dashboards kept as code with a warning when someone edits them in the UI.
+
+## How the tools fit together
+
+```mermaid
+flowchart LR
+    subgraph code["Code"]
+        DEV["Developer<br/>pre-commit, gitleaks"]
+        GH["GitHub<br/>pull request → main"]
+        GHA["GitHub Actions<br/>tests, plan, deploy"]
+    end
+
+    subgraph sources["Open data APIs"]
+        FG[Fingrid]
+        EN[ENTSO-E]
+        FMI[FMI]
+    end
+
+    subgraph azure["Azure"]
+        KV[Key Vault]
+        FN["Azure Functions<br/>Python, hourly"]
+        ADLS[("ADLS Gen2<br/>landing")]
+        MON["Azure Monitor<br/>alerts"]
+    end
+
+    subgraph dbx["Databricks, Unity Catalog"]
+        AL["Auto Loader job<br/>every 6 h"]
+        BR[(bronze)]
+        DBT["dbt job<br/>daily"]
+        SG[("silver, gold")]
+        OPS[(ops)]
+        SYS[(system tables)]
+        REP["Energy report<br/>dashboard"]
+        HEA["Pipeline health<br/>dashboard"]
+    end
+
+    DEV -->|git push| GH -->|triggers| GHA
+    GHA -.->|Terraform apply| azure
+    GHA -.->|function deploy| FN
+    GHA -.->|Terraform, bundle deploy| dbx
+
+    FG & EN & FMI --> FN
+    KV -.->|API keys| FN
+    FN -->|raw JSON, XML| ADLS --> AL --> BR --> DBT --> SG --> REP
+    DBT -->|run results| OPS
+    SYS -->|runs, cost| OPS --> HEA
+    FN -.->|failures| MON
+```
+
+Solid arrows carry data, dashed arrows code, configuration and alerts. Infrastructure, jobs and
+dashboards change only through a pull request, and only `main` deploys; the one-off bootstrap and
+backfill are the exceptions.
 
 ## Report
 
