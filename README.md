@@ -27,6 +27,19 @@ numbers come from tested dbt models (`dbt/models/reports`), which the Databricks
 
 Figures as of 2026-10-24.
 
+![Energy report: price by wind band per year, and the fitted price drop per GW of wind](docs/images/report-wind-and-price.png)
+
+<details>
+<summary>More pages of the report</summary>
+
+![Winter consumption against temperature, per winter](docs/images/report-winter-consumption.png)
+
+![Average price by local hour on weekdays and weekends, and the spread within the hour](docs/images/report-price-profiles.png)
+
+![Wind, net import, temperature and weekend share of the most expensive 1 %, negative and other quarter-hours](docs/images/report-price-spikes.png)
+
+</details>
+
 ## Monitoring
 
 - **Failures alert by email:** a Databricks job that fails after its retries (or runs past 30 minutes),
@@ -38,6 +51,15 @@ Figures as of 2026-10-24.
 - **Dashboards as code:** both dashboards are files in the Asset Bundle, deployed by CI; a dashboard
   edited in the UI but not in the repository is flagged on PRs and stops the deploy
   ([databricks/README.md](databricks/README.md)).
+
+![Pipeline health: daily job runs by result, run duration by job, data freshness per table](docs/images/health-runs-and-freshness.png)
+
+<details>
+<summary>Cost page</summary>
+
+![Daily Databricks cost by product at list price, and totals for the last 7 and 30 days](docs/images/health-cost.png)
+
+</details>
 
 ## Stack
 
