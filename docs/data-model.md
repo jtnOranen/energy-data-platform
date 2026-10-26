@@ -78,7 +78,7 @@ query time. Sources: Databricks system tables (`system.lakeflow`, `system.billin
 | `ops_daily_cost` | day × product × SKU | usage and list-price cost |
 | `ops_data_freshness` | table | newest fetch in bronze, newest quarter-hour in gold, hours since |
 | `ops_dbt_runs` | dbt run | nodes built, errors, tests run / failed / warned |
-| `ops_dbt_issues` | non-passing node | errors, failed and warning tests, skipped nodes |
+| `ops_dbt_issues` | non-passing node | errors, failed and warning tests, skipped nodes, stale sources (exposures left out) |
 
 ## Tests
 

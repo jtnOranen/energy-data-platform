@@ -119,18 +119,20 @@ models:
         description: Sum of the nodes' execution times, seconds.
 
   - name: ops_dbt_issues
-    description: Every node of a production dbt run that errored, failed, warned or was skipped.
+    description: >
+      Every node of a production dbt run that errored, failed, warned or was skipped, and every
+      stale source. Exposures (always no-op) are left out.
     columns:
       - name: invocation_id
         description: dbt invocation ID.
       - name: run_started_utc
         description: When the dbt run started, UTC.
       - name: resource_type
-        description: model, seed, snapshot, test or unit_test.
+        description: model, seed, snapshot, test, unit_test or source.
       - name: node_name
         description: Node name.
       - name: status
-        description: error, fail, warn or skipped.
+        description: error, fail, warn, skipped or runtime error.
       - name: failures
         description: Failing rows for a test.
       - name: message
