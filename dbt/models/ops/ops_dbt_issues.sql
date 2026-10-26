@@ -1,5 +1,6 @@
 -- Every node of a production dbt run that didn't simply pass: errors, failed and warning tests,
--- skipped nodes. Empty is the good state.
+-- skipped nodes, stale sources. Empty is the good state. Exposures always report `no-op` (dbt
+-- doesn't run them), so that isn't an issue either.
 with
 
 results as (
@@ -16,7 +17,7 @@ final as (
         failures,
         message
     from results
-    where status not in ('success', 'pass')
+    where status not in ('success', 'pass', 'no-op')
 )
 
 select * from final
