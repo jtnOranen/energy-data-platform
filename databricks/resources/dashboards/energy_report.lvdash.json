@@ -386,27 +386,32 @@
               },
               "encodings": {
                 "color": {
+                  "displayName": "Year",
                   "fieldName": "year_number",
                   "scale": {
-                    "colorRamp": {
-                      "mode": "scheme",
-                      "scheme": "redblue"
-                    },
-                    "type": "quantitative"
+                    "type": "categorical"
                   }
                 },
                 "x": {
+                  "displayName": "Wind production band (MW)",
                   "fieldName": "wind_band_mw",
                   "scale": {
                     "type": "quantitative"
                   }
                 },
                 "y": {
+                  "displayName": "Median price (€/MWh)",
                   "fieldName": "avg(median_price_eur_mwh)",
                   "scale": {
                     "type": "quantitative"
                   }
                 }
+              },
+              "frame": {
+                "description": "Median price for each 500 MW band of wind production, by year",
+                "showDescription": true,
+                "showTitle": true,
+                "title": "Price by wind band"
               },
               "version": 3,
               "widgetType": "line"
@@ -654,6 +659,7 @@
                   }
                 ],
                 "x": {
+                  "displayName": "Price band",
                   "fieldName": "price_band",
                   "scale": {
                     "type": "categorical"
@@ -748,6 +754,7 @@
                   }
                 },
                 "x": {
+                  "displayName": "Local hour",
                   "fieldName": "hour_of_day",
                   "scale": {
                     "type": "categorical"
