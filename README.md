@@ -27,10 +27,14 @@ numbers come from tested dbt models (`dbt/models/reports`), which the Databricks
 
 Figures as of 2026-10-24.
 
-![Energy report: price by wind band per year, and the fitted price drop per GW of wind](docs/images/report-wind-and-price.png)
+![Energy report overview: one headline figure per question](docs/images/report-overview.png)
 
 <details>
-<summary>More pages of the report</summary>
+<summary>The report's pages, one per question</summary>
+
+![Price by wind band per year, and the fitted price drop per GW of wind](docs/images/report-wind-and-price.png)
+
+![Share of negative-price quarter-hours by month and hour, and conditions by price band](docs/images/report-negative-prices.png)
 
 ![Winter consumption against temperature, per winter](docs/images/report-winter-consumption.png)
 
