@@ -6,6 +6,7 @@
 > explains up to two fifths of the price variance, and the most expensive quarter-hours are cold, calm
 > weekday mornings when Finland imports.
 
+**The main goal of this project is to train and showcase end-to-end data pipeline utilizing infrastructure-as-a-code, Azure environment and Databricks**. The focus is on the data engineering side of the project rather than on the visualisation and end report.
 How wind power and weather show up in the Finnish day-ahead electricity price — an end-to-end data platform on
 Azure and Databricks, built with Terraform, dbt and GitHub Actions. Architecture and data flow:
 [docs/architecture.md](docs/architecture.md).
