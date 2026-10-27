@@ -241,6 +241,7 @@ ideally before A.
    file that arrived since the last run and ingestion still runs hourly. The trade-off is that bronze
    lags landing by up to about 6 hours, which the historical analysis doesn't mind; phase 3's source
    freshness thresholds must allow for it. Easy to tighten later (one cron line).
+   *Changed 2026-10-27: once a day at 06:30 UTC, before the daily dbt job, to save cost (ADR 0017).*
 4. **The workspace is created by `bootstrap.sh`**, not Terraform, so the CI service principal keeps no
    subscription-level rights. See ADR 0012.
 

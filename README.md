@@ -57,7 +57,7 @@ flowchart LR
     end
 
     subgraph dbx["Databricks, Unity Catalog"]
-        AL["Auto Loader job<br/>every 6 h"]
+        AL["Auto Loader job<br/>daily"]
         BR[(bronze)]
         DBT["dbt job<br/>daily"]
         SG[("silver, gold")]

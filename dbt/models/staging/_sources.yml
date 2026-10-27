@@ -1,14 +1,15 @@
 sources:
   - name: bronze
     description: >
-      Raw records loaded from landing by Auto Loader every 6 hours (phase 2). Every column is a
+      Raw records loaded from landing by Auto Loader once a day (phase 2, ADR 0017). Every column is a
       string as the source sent it; duplicates are expected, because each fetch overlaps the
       previous 48 hours.
     database: energy
     schema: bronze
     config:
       # The fetch time from the file name, so freshness covers the whole pipeline from the API.
-      # Bronze loads every 6 hours (roadmap backlog), so 8 hours is late and 24 hours is broken.
+      # Bronze loads at 06:30 UTC and the daily job checks at 07:15, when the newest fetch is about an
+      # hour old: 8 hours means ingestion stalled, over 24 hours means the morning load didn't land.
       loaded_at_field: _ingested_at
       freshness:
         warn_after: {count: 8, period: hour}
