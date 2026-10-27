@@ -47,9 +47,9 @@ Terraform creates every Azure and Databricks resource. GitHub Actions tests ever
 | Azure Function (`ingestion/`) | Fetch the three APIs and write raw responses to ADLS | Timer trigger hourly; idempotent; overlap window to catch late data |
 | ADLS Gen2 `landing` container | Immutable raw files | Path: `landing/<source>/<dataset>/yyyy=YYYY/mm=MM/dd=DD/<ingested_at>_<window_start>_<window_end>[_<key>]_p<part>.<json\|xml>`; date = ingestion date (UTC), `key` = e.g. FMI station |
 | Key Vault | Fingrid API key, ENTSO-E token | Function reads via managed identity (RBAC) |
-| Databricks Auto Loader job | Raw files → bronze Delta tables | Serverless, `availableNow` run every 6 hours; explicit schemas with `_rescued_data`; adds `_ingested_at`, `_source_file`, `_loaded_at` |
+| Databricks Auto Loader job | Raw files → bronze Delta tables | Serverless, `availableNow` run once a day (ADR 0017); explicit schemas with `_rescued_data`; adds `_ingested_at`, `_source_file`, `_loaded_at` |
 | dbt (`dbt/`) | bronze → silver → gold | dbt-databricks adapter, serverless SQL warehouse |
-| Databricks Workflows | Orchestration: `bronze_load` every 6 hours, `dbt_build` once a day after it | Defined in a Databricks Asset Bundle; dbt task on serverless jobs compute (ADR 0014) |
+| Databricks Workflows | Orchestration: `bronze_load` at 06:30 UTC, `dbt_build` at 07:15 UTC after it | Defined in a Databricks Asset Bundle; dbt task on serverless jobs compute (ADR 0014) |
 | AI/BI dashboards | `Energy report` on the gold `rpt_*` models; `Pipeline health` on the `ops_*` views (job runs, dbt results, freshness, cost) | Defined in the bundle (`databricks/resources/dashboards`), deployed by CI; datasets only select from dbt models |
 | Monitoring | Failure alerts by email: Databricks job notifications, an Azure Monitor log alert on the functions (2 failures in 3 h), dbt source freshness, budget alerts | Terraform `modules/monitoring`, bundle job settings |
 | Terraform (`infra/`) | All infrastructure | Remote state in a separately bootstrapped storage account |
@@ -83,11 +83,11 @@ Third-party actions are pinned to commit SHAs and kept current by Dependabot.
 ## Cost controls
 
 Budget alert in Terraform, serverless jobs compute for the bronze load (ADR 0011), smallest serverless SQL warehouse with
-auto-stop, scheduled (not continuous) runs (ingestion hourly, bronze every 6 hours, dbt daily), resource tags `project` and `env` on everything. Actual monthly cost is
+auto-stop, scheduled (not continuous) runs (ingestion hourly, bronze and dbt daily), predictive optimization off (ADR 0017), resource tags `project` and `env` on everything. Actual monthly cost is
 recorded in the README.
 
 ## Decisions
 
 See `docs/adr/`. Key ones: Azure Function for ingestion (0002), dbt for transformations (0003), OIDC for CI (0004),
 UTC and 15-minute grain (0005), serverless jobs for bronze (0011), workspace in bootstrap (0012), serverless workspace (0013), daily dbt job (0014),
-one CI entry point with a gate check (0015), read-only identity for pull requests (0016).
+one CI entry point with a gate check (0015), read-only identity for pull requests (0016), daily bronze load and no predictive optimization (0017).

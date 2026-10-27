@@ -3,8 +3,8 @@
 Databricks Asset Bundle for the platform's jobs:
 
 - `bronze_load` (phase 2) reads new files from the ADLS `landing` container with Auto Loader and
-  appends them to the `energy.bronze` tables. Serverless jobs compute (ADR 0011), every 6 hours at
-  :30 UTC, one task per source. The tables and their columns are described in `docs/data-model.md`
+  appends them to the `energy.bronze` tables. Serverless jobs compute (ADR 0011), once a day at
+  06:30 UTC (ADR 0017), one task per source. The tables and their columns are described in `docs/data-model.md`
   and the phase 2 spec.
 - `dbt_build` (phase 3) runs the dbt project in `../dbt` once a day at 07:15 UTC: silver and gold
   (ADR 0014). See `dbt/README.md`.
@@ -137,7 +137,7 @@ Or "Run now" on the job in the workspace UI. The first run loads the whole backf
 Landing is immutable, so bronze can always be rebuilt, e.g. after a schema change. The manual job
 `bronze_rebuild` drops one source's tables and checkpoints and reloads every landing file. It runs as
 the CI service principal, which owns the tables. Start it between `bronze_load` runs (they run at
-:30 every 6 hours and take about 10 minutes):
+06:30 UTC and take about 10 minutes):
 
 ```bash
 DATABRICKS_AUTH_TYPE=azure-cli databricks bundle run -t dev bronze_rebuild --params source=fingrid

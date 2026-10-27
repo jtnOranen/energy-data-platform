@@ -84,7 +84,7 @@ query time. Sources: Databricks system tables (`system.lakeflow`, `system.billin
 
 | Where | Test |
 | --- | --- |
-| sources | `freshness` on bronze (bronze loads every 6 hours, so e.g. warn 8 h, error 24 h — tune after observing) |
+| sources | `freshness` on bronze (bronze loads at 06:30 UTC, checked at 07:15: warn 8 h, error 24 h) |
 | staging | `unique` + `not_null` on natural keys |
 | staging (ENTSO-E) | `accepted_values` on zone, currency, unit, curve type, resolution |
 | intermediate | dbt **unit tests**: 60→15 min expansion, A03 forward-fill, 15-min preference, long Fingrid records, weather alignment; data test: every delivery period (DST days included) yields one price per quarter-hour |

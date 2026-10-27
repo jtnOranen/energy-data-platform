@@ -37,11 +37,13 @@ resource "databricks_external_location" "lake" {
 }
 
 # storage_root keeps the catalog's managed tables in our own container rather than wherever the
-# auto-provisioned metastore would put them.
+# auto-provisioned metastore would put them. Predictive optimization (automatic OPTIMIZE/VACUUM) is
+# off for every schema: on tables this small it cost more per day than the bronze load (ADR 0017).
 resource "databricks_catalog" "this" {
-  name         = var.project
-  storage_root = "${databricks_external_location.lake.url}${var.project}"
-  comment      = "Energy data platform: bronze, silver and gold. Managed by Terraform."
+  name                           = var.project
+  storage_root                   = "${databricks_external_location.lake.url}${var.project}"
+  comment                        = "Energy data platform: bronze, silver and gold. Managed by Terraform."
+  enable_predictive_optimization = "DISABLE"
 }
 
 resource "databricks_schema" "bronze" {
