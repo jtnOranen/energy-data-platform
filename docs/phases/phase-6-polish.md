@@ -120,24 +120,23 @@ The rebuild: the first bronze load took about 35 minutes of serverless jobs comp
 and a full `dbt build` a few minutes of warehouse time, so about 1–3 EUR in all, plus nothing while
 the resources are gone. GitHub Pages is free for public repositories. No new running cost.
 
-## Decisions (to be made by the owner)
+## Decisions (made by the owner on 2026-11-01)
 
-1. **What the rebuild destroys.** *Recommended:* everything Terraform and the bundle own; the
-   workspace and the other `bootstrap.sh` objects stay, and `bootstrap.sh` is re-run to show it is
-   idempotent. *Alternative:* also delete the workspace, so `bootstrap.sh` recreates it; a fuller
-   test, but the workspace URL and ID change (repository variables, `databricks.yml`,
-   `dbt_project.yml`), and that is the kind of change ADR 0013 already went through once.
-2. **Where landing comes from after the rebuild.** *Recommended:* back it up before the destroy
-   and restore it after (649 MB with `az storage blob download-batch` / `upload-batch` as the
-   owner), so the rebuilt gold can be compared exactly with the old. *Alternative:* re-run the
-   phase 1 backfill from the APIs; shows the whole chain from the sources, but takes hours within
-   the rate limits, and revised data makes the comparison inexact.
-3. **Where the interview notes go.** *Recommended:* `docs/design-notes.md`, short answers grouped
-   by topic, each linking its ADR, and linked from the README; the README stays a summary.
-   *Alternative:* sections in the README itself (one place to read, but it doubles in length).
-4. **The dbt docs site.** *Recommended:* publish it to GitHub Pages from `main` when `dbt/`
-   changes, linked from the README. *Alternative:* keep it as a CI artifact only and drop the
-   backlog item.
+1. **The rebuild destroys everything Terraform and the bundle own.** The workspace and the other
+   `bootstrap.sh` objects stay, and `bootstrap.sh` is re-run to show it is idempotent. Rejected:
+   also deleting the workspace (a fuller test, but the workspace URL and ID change in the
+   repository variables, `databricks.yml` and `dbt_project.yml`, which ADR 0013 already went
+   through once).
+2. **Landing is backed up before the destroy and restored after** (649 MB with
+   `az storage blob download-batch` / `upload-batch` as the owner), so the rebuilt gold can be
+   compared exactly with the old. Rejected: re-running the phase 1 backfill from the APIs (the
+   whole chain from the sources, but hours within the rate limits, and revised data makes the
+   comparison inexact).
+3. **The interview notes go into `docs/design-notes.md`**: short answers grouped by topic, each
+   linking its ADR, linked from the README, which stays a summary. Rejected: sections in the
+   README itself (one place to read, but it doubles in length).
+4. **The dbt docs site is published to GitHub Pages** from `main` when `dbt/` changes, linked from
+   the README. Rejected: keeping it as a CI artifact only.
 
 ## Acceptance criteria
 
@@ -153,12 +152,12 @@ the resources are gone. GitHub Pages is free for public repositories. No new run
       their own, with no gap in the data.
 - [ ] Both dashboards render with current data; a deliberately failed job still emails the owner.
 - [ ] The rebuild's time, cost and every manual step are recorded here.
-- [ ] Personal access tokens are off; the dbt docs site is published (if decision 4 keeps it); the
-      orphaned catalog is gone or confirmed absent.
+- [ ] Personal access tokens are off; the dbt docs site is published on GitHub Pages; the orphaned
+      catalog is gone or confirmed absent.
 - [ ] The README has the cost report and the limitations; the interview notes of phases 0–6 are
-      written up (decision 3).
+      written up in `docs/design-notes.md`.
 
-## Interview notes to capture (in README or ADRs)
+## Interview notes to capture (in `docs/design-notes.md`)
 
 - What "rebuildable" means here: what Terraform owns, what `bootstrap.sh` owns and why, and what
   is restored rather than recreated (landing, API keys).
