@@ -21,7 +21,6 @@ jobs:
       contents: read
     env:
       DATABRICKS_HOST: https://adb-7405610438268005.5.azuredatabricks.net
-      WAREHOUSE_ID: f5e7a914313e58c9 # Terraform output databricks_sql_warehouse_id
       PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
       - name: Azure login (OIDC)
@@ -36,9 +35,13 @@ jobs:
         run: |
           token=$(az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d --query accessToken -o tsv)
           echo "::add-mask::$token"
+          # By name: Terraform gives the warehouse a new ID whenever it recreates it (phase 6).
+          warehouse_id=$(curl -sSf "$DATABRICKS_HOST/api/2.0/sql/warehouses" -H "Authorization: Bearer $token" \
+            | jq -r '.warehouses[] | select(.name == "energy-dev") | .id')
+          [[ -n "$warehouse_id" ]] || { echo "::error::SQL warehouse energy-dev not found"; exit 1; }
           for layer in silver gold; do
             schema="pr_${PR_NUMBER}_${layer}"
-            body=$(jq -n --arg wh "$WAREHOUSE_ID" --arg s "drop schema if exists energy.${schema} cascade" \
+            body=$(jq -n --arg wh "$warehouse_id"--arg s "drop schema if exists energy.${schema} cascade" \
               '{warehouse_id: $wh, statement: $s, wait_timeout: "50s"}')
             state=$(curl -sSf -X POST "$DATABRICKS_HOST/api/2.0/sql/statements" \
               -H "Authorization: Bearer $token" -H "Content-Type: application/json" \

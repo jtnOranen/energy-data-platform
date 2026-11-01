@@ -41,8 +41,11 @@ variables:
       The owner's Databricks user name (an email), who can view everything the bundle deploys.
       No default for the same reason as alert_email; CI sets it from the OWNER repository variable.
   warehouse_id:
-    description: SQL warehouse the dashboards query (Terraform output databricks_sql_warehouse_id).
-    default: f5e7a914313e58c9
+    description: >
+      SQL warehouse the dashboards and the dbt job use. Looked up by its name (Terraform's
+      modules/sql_warehouse), because its ID changes whenever Terraform recreates it (phase 6).
+    lookup:
+      warehouse: energy-dev
 
 targets:
   dev:

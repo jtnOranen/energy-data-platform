@@ -51,11 +51,12 @@ resources:
             project_directory: ../../dbt
             # The project's own profiles.yml, not a generated one: only its `prod` target writes to
             # silver/gold (macros/generate_schema_name.sql). Databricks injects DBT_ACCESS_TOKEN for
-            # the run-as principal; the warehouse is in the profile, so no warehouse_id here (the
-            # API allows profiles_directory only without one).
+            # the run-as principal. The task's own warehouse_id would make Databricks generate the
+            # profile (the API allows profiles_directory only without one), so the profile gets
+            # the warehouse ID through --vars instead.
             profiles_directory: .
             commands:
               - dbt deps
-              - dbt build --target prod {{job.parameters.build_flags}}
+              - "dbt build --target prod --vars '{warehouse_id: ${var.warehouse_id}}' {{job.parameters.build_flags}}"
               # Last, so a stale source fails the run without stopping gold from updating.
-              - dbt source freshness --target prod
+              - "dbt source freshness --target prod --vars '{warehouse_id: ${var.warehouse_id}}'"

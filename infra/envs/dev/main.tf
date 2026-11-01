@@ -1,5 +1,15 @@
 provider "azurerm" {
-  features {}
+  features {
+    # A destroyed vault stays soft-deleted (7 days), and the apply never tries to recover one. Both
+    # purging and recovering act on a subscription-level object (…/locations/<region>/deletedVaults/
+    # <name>), outside the CI principal's resource-group scope, so in a rebuild the owner purges it
+    # and enters the API keys again (docs/rebuild.md). The Log Analytics workspace keeps its default:
+    # soft-deleted on destroy, recovered when one with the same name is created again.
+    key_vault {
+      purge_soft_delete_on_destroy    = false
+      recover_soft_deleted_key_vaults = false
+    }
+  }
 
   # The storage accounts have Shared Key disabled, so storage data-plane calls use Entra ID.
   storage_use_azuread = true
@@ -14,10 +24,16 @@ provider "databricks" {
   host = "https://${data.azurerm_databricks_workspace.dev.workspace_url}"
 }
 
-resource "random_string" "suffix" {
-  length  = 4
-  special = false
-  upper   = false
+# The suffix of the globally unique names (storage, Key Vault, function app) was a random_string
+# until phase 6. A destroy and apply would have drawn a new one and renamed everything, so it is a
+# fixed variable now; this block drops the old resource from the state without touching anything.
+# Remove the block, and the random provider, once it has been applied.
+removed {
+  from = random_string.suffix
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 locals {
@@ -43,7 +59,7 @@ module "storage" {
 
   project             = "energy"
   env                 = "dev"
-  suffix              = random_string.suffix.result
+  suffix              = var.suffix
   location            = var.location
   resource_group_name = data.azurerm_resource_group.dev.name
   tags                = local.tags
@@ -54,7 +70,7 @@ module "key_vault" {
 
   project             = "energy"
   env                 = "dev"
-  suffix              = random_string.suffix.result
+  suffix              = var.suffix
   location            = var.location
   resource_group_name = data.azurerm_resource_group.dev.name
   tags                = local.tags
@@ -75,7 +91,7 @@ module "function_app" {
 
   project                = "energy"
   env                    = "dev"
-  suffix                 = random_string.suffix.result
+  suffix                 = var.suffix
   location               = var.location
   resource_group_name    = data.azurerm_resource_group.dev.name
   resource_group_id      = data.azurerm_resource_group.dev.id
@@ -145,6 +161,7 @@ module "unity_catalog" {
   lake_container_name     = module.storage.lake_container_name
   owner_user_name         = var.owner
   pr_service_principal_id = var.pr_client_id
+  allow_destroy           = var.allow_destroy
 }
 
 module "sql_warehouse" {

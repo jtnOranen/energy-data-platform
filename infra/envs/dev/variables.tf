@@ -4,6 +4,18 @@ variable "location" {
   default     = "swedencentral"
 }
 
+variable "suffix" {
+  description = "Suffix of the globally unique resource names (storage accounts, Key Vault, function app). Fixed, so a rebuild keeps every name and endpoint (phase 6); it was drawn at random in phase 0."
+  type        = string
+  default     = "ua7j"
+}
+
+variable "allow_destroy" {
+  description = "Let Terraform delete the catalog and its schemas with the tables in them (force_destroy). Only the destroy workflow sets it, just before it destroys (phase 6); everywhere else a mistaken plan can't drop the data."
+  type        = bool
+  default     = false
+}
+
 variable "owner" {
   description = "Owner's Entra ID user principal name (email): the owner tag and the owner's Unity Catalog principal."
   type        = string

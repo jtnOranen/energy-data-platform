@@ -50,7 +50,9 @@ are still uncaptured.
 ## Manual prerequisites (owner)
 
 1. Run the rebuild (deliverable C): trigger the destroy and deploy workflows, back up and restore
-   landing, re-run `bootstrap.sh`. Claude Code prepares each step and checks the results.
+   landing, re-run `bootstrap.sh`, purge the soft-deleted Key Vault and enter the two API keys
+   again (keep a copy of them outside Azure first; step 0 item 2). Claude Code prepares each step
+   and checks the results.
 2. If the orphaned catalog exists: delete it as metastore admin (step 0 item 6).
 3. Retake the README screenshots of the wind and negative-price pages, which predate PR #56
    (optional).
@@ -62,20 +64,42 @@ are still uncaptured.
    variable with today's value replaces it. Confirm the plan shows no changes to the named
    resources, and that Azure lets a storage account and function app take the same name again
    right after deletion.
+   **Checked 2026-11-01** (PR A, Terraform 1.14.8): the plan only forgets `random_string.suffix`
+   ("will no longer be managed by Terraform, but will not be destroyed"); every name stays. Name
+   reuse after deletion is confirmed by the rebuild itself.
 2. **Key Vault recovery:** with `purge_soft_delete_on_destroy = false` and
    `recover_soft_deleted_key_vaults = true` (the default), does the apply recover the soft-deleted
    vault with its secrets, and do the role assignments (owner, function app) come back with it?
    The same for the Log Analytics workspace (soft-deleted for 14 days, recovered on re-create
    with the same name).
+   **Decided in PR A (2026-11-01): no automatic recovery.** A soft-deleted vault is a
+   subscription-level object (`/subscriptions/…/providers/Microsoft.KeyVault/locations/<region>/
+   deletedVaults/<name>`), outside the CI principal's Contributor on `rg-energy-dev`, so neither a
+   recovery nor a purge by CI can be relied on, and recovering would leave a vault outside the
+   state that the apply then can't create. So the provider neither purges on destroy nor recovers
+   on apply; in the rebuild the **owner purges the vault** (`az keyvault purge`) and **enters the
+   two API keys again** from where they keep them. Log Analytics keeps its default (soft delete,
+   recovered by name, which needs no subscription rights).
 3. **Warehouse ID without hardcoding:** a bundle variable with `lookup: warehouse: <name>` for the
    dashboards; the CLI (`databricks warehouses list`) in the PR cleanup workflow; and for dbt, can
    the job pass `DBT_DATABRICKS_HTTP_PATH` to the serverless dbt task (task environment variables),
    or does `profiles.yml` look the warehouse up some other way? Local development may keep a
    fallback, but the job and CI must not depend on it.
+   **Checked 2026-11-01** (PR A): the bundle variable's `lookup: warehouse: energy-dev` resolves
+   (`bundle validate`) for the dashboards and the dbt job. A serverless dbt task can't set
+   environment variables, but dbt renders `var()` in `profiles.yml`, so the job passes
+   `--vars '{warehouse_id: ...}'` and the `prod` target builds the HTTP path from it. CI and the PR
+   cleanup look the warehouse up by name through the API (`odbc_params.path`, `id`). No fallback
+   stays: the other targets read `DBT_DATABRICKS_HTTP_PATH` with an empty default, so `dbt parse`
+   still runs without a connection (fork PRs, the production manifest), and the owner sets it
+   locally (`dbt/README.md`; `dbt debug` passed that way).
 4. **Catalog destroy:** `force_destroy` on `databricks_catalog` (and the schemas) behind a variable
    that defaults to `false`, set to `true` only by the destroy workflow, which applies it before it
    destroys. Confirm that a normal plan never shows it, and what else blocks the destroy (the
    checkpoint volume, external locations still used by tables, grants).
+   **Partly checked 2026-11-01** (PR A): `allow_destroy` (default `false`) sets `force_destroy` on
+   the catalog and the four schemas, and the plan with the default shows no change. What else
+   blocks a destroy shows only in the destroy itself (deliverable C).
 5. **Order and identities:** `databricks bundle destroy` before `terraform destroy` (the jobs use
    the catalog), both as the deploying principal in the `dev` environment. Which parts of the
    destroy does it lack rights for? It is Contributor on `rg-energy-dev` only, and `bootstrap.sh`

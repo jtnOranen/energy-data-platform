@@ -44,35 +44,42 @@ resource "databricks_catalog" "this" {
   storage_root                   = "${databricks_external_location.lake.url}${var.project}"
   comment                        = "Energy data platform: bronze, silver and gold. Managed by Terraform."
   enable_predictive_optimization = "DISABLE"
+  # Off except in the destroy workflow (phase 6): dbt and the bundle create tables Terraform doesn't
+  # know about, and only force_destroy lets a destroy drop them along with the catalog and schemas.
+  force_destroy = var.allow_destroy
 }
 
 resource "databricks_schema" "bronze" {
-  catalog_name = databricks_catalog.this.name
-  name         = "bronze"
-  comment      = "Raw records loaded from landing by Auto Loader, one table per source dataset."
+  catalog_name  = databricks_catalog.this.name
+  name          = "bronze"
+  comment       = "Raw records loaded from landing by Auto Loader, one table per source dataset."
+  force_destroy = var.allow_destroy
 }
 
 # dbt writes staging and intermediate models, seeds and the snapshot to silver, the star schema to
 # gold. Terraform creates them, like bronze, so the CI SP owns every schema and all grants live here;
 # dbt creates only the owner's dev schemas and, in phase 4, the PR schemas (phase 3 spec, decision 2).
 resource "databricks_schema" "silver" {
-  catalog_name = databricks_catalog.this.name
-  name         = "silver"
-  comment      = "dbt staging and intermediate models: typed, deduplicated, aligned to 15 minutes."
+  catalog_name  = databricks_catalog.this.name
+  name          = "silver"
+  comment       = "dbt staging and intermediate models: typed, deduplicated, aligned to 15 minutes."
+  force_destroy = var.allow_destroy
 }
 
 resource "databricks_schema" "gold" {
-  catalog_name = databricks_catalog.this.name
-  name         = "gold"
-  comment      = "dbt star schema at a 15-minute grain, for the report."
+  catalog_name  = databricks_catalog.this.name
+  name          = "gold"
+  comment       = "dbt star schema at a 15-minute grain, for the report."
+  force_destroy = var.allow_destroy
 }
 
 # Operational data about the pipeline itself, for the pipeline-health dashboard (phase 5): the
 # results of every production dbt run, written by dbt's on-run-end hook.
 resource "databricks_schema" "ops" {
-  catalog_name = databricks_catalog.this.name
-  name         = "ops"
-  comment      = "Pipeline operations data: dbt run results for the pipeline-health dashboard."
+  catalog_name  = databricks_catalog.this.name
+  name          = "ops"
+  comment       = "Pipeline operations data: dbt run results for the pipeline-health dashboard."
+  force_destroy = var.allow_destroy
 }
 
 # Auto Loader checkpoints and schema tracking, one directory per bronze table.
