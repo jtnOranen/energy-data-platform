@@ -1,5 +1,8 @@
 # No secrets here: every target reads its token from the environment or logs in interactively.
-# Host and HTTP path aren't secret (they're also in databricks/databricks.yml and Terraform outputs).
+# The host isn't secret and stays as long as the workspace does. The warehouse's ID changes whenever
+# Terraform recreates it (a rebuild, phase 6), so no target names it: CI and the owner look up the
+# warehouse `energy-dev` and set DBT_DATABRICKS_HTTP_PATH, and the job passes `--vars` (below). The
+# empty defaults let `dbt parse` run without it; anything that connects fails until it is set.
 energy:
   target: dev
   outputs:
@@ -8,7 +11,7 @@ energy:
     dev:
       type: databricks
       host: "{{ env_var('DBT_DATABRICKS_HOST', 'adb-7405610438268005.5.azuredatabricks.net') }}"
-      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/f5e7a914313e58c9') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '') }}"
       catalog: energy
       schema: dev
       auth_type: oauth
@@ -19,7 +22,7 @@ energy:
     ci:
       type: databricks
       host: "{{ env_var('DBT_DATABRICKS_HOST', 'adb-7405610438268005.5.azuredatabricks.net') }}"
-      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/f5e7a914313e58c9') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '') }}"
       catalog: energy
       schema: ci
       token: "{{ env_var('DBT_DATABRICKS_TOKEN', '') }}"
@@ -30,17 +33,19 @@ energy:
     pr:
       type: databricks
       host: "{{ env_var('DBT_DATABRICKS_HOST', 'adb-7405610438268005.5.azuredatabricks.net') }}"
-      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/f5e7a914313e58c9') }}"
+      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '') }}"
       catalog: energy
       schema: "pr_{{ env_var('DBT_PR_NUMBER', '0') }}"
       token: "{{ env_var('DBT_DATABRICKS_TOKEN', '') }}"
       threads: 4
 
     # The Databricks job (phase 3, PR E): Databricks injects DBT_ACCESS_TOKEN for the run-as principal.
+    # A serverless dbt task can't set environment variables, so the job passes the warehouse ID,
+    # which the bundle looks up by name, as `--vars '{warehouse_id: ...}'`.
     prod:
       type: databricks
       host: "{{ env_var('DBT_DATABRICKS_HOST', 'adb-7405610438268005.5.azuredatabricks.net') }}"
-      http_path: "{{ env_var('DBT_DATABRICKS_HTTP_PATH', '/sql/1.0/warehouses/f5e7a914313e58c9') }}"
+      http_path: "/sql/1.0/warehouses/{{ var('warehouse_id', '') }}"
       catalog: energy
       schema: prod
       token: "{{ env_var('DBT_ACCESS_TOKEN', '') }}"

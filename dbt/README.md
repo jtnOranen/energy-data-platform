@@ -27,6 +27,17 @@ Writes to your own schemas `dev_silver` and `dev_gold`, never to `silver`/`gold`
 
   `2ff814a6-…` is the fixed application ID of Azure Databricks, not a secret.
 
+Either way, dbt needs the warehouse's HTTP path. It isn't in `profiles.yml`, because the warehouse
+gets a new ID whenever Terraform recreates it (phase 6). Copy it from the warehouse `energy-dev`
+(SQL Warehouses → Connection details), or look it up with the token above:
+
+```bash
+export DBT_DATABRICKS_HTTP_PATH=$(curl -sS \
+  https://adb-7405610438268005.5.azuredatabricks.net/api/2.0/sql/warehouses \
+  -H "Authorization: Bearer $DBT_DATABRICKS_TOKEN" \
+  | jq -r '.warehouses[] | select(.name == "energy-dev") | .odbc_params.path')
+```
+
 ```bash
 uv run dbt build                 # models + tests
 uv run dbt build -s staging      # one folder

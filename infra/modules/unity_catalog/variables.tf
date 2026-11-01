@@ -37,3 +37,9 @@ variable "owner_user_name" {
   description = "Owner's Databricks user name (their Entra ID user principal name), granted read access and CREATE SCHEMA for dbt dev schemas."
   type        = string
 }
+
+variable "allow_destroy" {
+  description = "Set force_destroy on the catalog and its schemas, so destroying them also drops the tables that dbt and the bundle created. False except in the destroy workflow."
+  type        = bool
+  default     = false
+}

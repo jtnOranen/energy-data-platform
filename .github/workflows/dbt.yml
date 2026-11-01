@@ -63,6 +63,20 @@ jobs:
           echo "::add-mask::$token"
           echo "DBT_DATABRICKS_TOKEN=$token" >> "$GITHUB_ENV"
 
+      # The warehouse by name, not by ID: Terraform gives it a new ID whenever it recreates it
+      # (phase 6). Both principals can list it (CAN_USE).
+      - name: Warehouse HTTP path
+        if: env.IS_TRUSTED_SOURCE == 'true'
+        run: |
+          path=$(curl -sSf "https://adb-7405610438268005.5.azuredatabricks.net/api/2.0/sql/warehouses" \
+            -H "Authorization: Bearer $DBT_DATABRICKS_TOKEN" \
+            | jq -r '.warehouses[] | select(.name == "energy-dev") | .odbc_params.path')
+          if [[ -z "$path" ]]; then
+            echo "::error::SQL warehouse energy-dev not found"
+            exit 1
+          fi
+          echo "DBT_DATABRICKS_HTTP_PATH=$path" >> "$GITHUB_ENV"
+
       - name: sqlfluff lint
         if: env.IS_TRUSTED_SOURCE == 'true'
         run: uv run sqlfluff lint models tests

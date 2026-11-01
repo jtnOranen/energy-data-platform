@@ -20,7 +20,10 @@
 | dbt models | `stg_<source>__<entity>`, `int_<entity>_<grain>`, `fct_…`, `dim_…` | `stg_entsoe__day_ahead_price` |
 | Columns | snake_case; UTC timestamps end in `_utc`; units in the name | `wind_production_mw`, `price_eur_mwh` |
 
-A random `suffix` comes from `random_string` in Terraform so names stay unique.
+A `suffix` keeps globally unique names unique. It was drawn at random in phase 0 and is now a
+fixed Terraform variable (`ua7j`), so a rebuild keeps every name (phase 6). Don't hardcode IDs that
+Azure or Databricks assign (a warehouse's ID changes when Terraform recreates it); look them up by
+name.
 
 ## Terraform
 
