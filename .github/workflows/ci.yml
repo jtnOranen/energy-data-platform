@@ -3,10 +3,13 @@ name: CI
 # The single entry point for every pull request and every push to main (ADR 0015). The per-part
 # workflows are reusable (workflow_call) and run only when their part changed; the gate job at the
 # end is the only required status check, so a PR that skips a part still gets a result.
+# Run by hand on main (workflow_dispatch), it checks and deploys every part in order: the rebuild
+# half of the phase 6 rebuild test (docs/rebuild.md, after destroy.yml).
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,8 +47,8 @@ jobs:
         run: |
           if [[ "$EVENT" == "pull_request" ]]; then
             files=$(git diff --name-only "$PR_BASE...$PR_HEAD")
-          elif [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
-            files=$(git ls-files) # first push of a branch: no "before" to diff against
+          elif [[ "$EVENT" == "workflow_dispatch" || "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            files=$(git ls-files) # run by hand, or a branch's first push: everything
           else
             files=$(git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA")
           fi
@@ -111,7 +114,7 @@ jobs:
         run: |
           if [[ "$EVENT" == "pull_request" ]]; then
             range="$PR_BASE..$PR_HEAD"
-          elif [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+          elif [[ "$EVENT" == "workflow_dispatch" || "$PUSH_BEFORE" =~ ^0+$ ]]; then
             range="$GITHUB_SHA"
           else
             range="$PUSH_BEFORE..$GITHUB_SHA"
