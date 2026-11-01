@@ -20,17 +20,15 @@ Known gaps, recorded when found so the phase that owns them picks them up.
 
 Done: phase 3's items (bronze freshness thresholds, ENTSO-E staging checks) and phase 4's CI/CD
 hardening from the 2026-10-22 security review (read-only PR identity, SHA-pinned actions with
-Dependabot, `dev` deployable only from `main`).
+Dependabot, `dev` deployable only from `main`), and phase 5's failure alerts (job emails, a function
+alert; a failed `main` deploy is GitHub's own workflow-failure email to the pusher).
 
 **Standing rule (public repo):** Terraform plan comments on PRs are public. Sensitive variables are
 hidden; mark every new one `sensitive`.
 
-**Phase 5 (monitoring)**
-- Alert when a scheduled run fails (`bronze_load`, `dbt_build`, the ingestion functions) and when a
-  `main` deploy fails. Today only the job pages show it; ENTSO-E's outage on 2026-10-22 (two failed
-  function runs, HTTP 599) was found by hand.
-
 **Phase 6 (polish)**
+- The workspace still allows personal access tokens (`enableTokensConfig` is `true`), though none
+  exist and nothing uses one (checked 2026-11-01). Consider turning them off.
 - An orphaned workspace catalog from the deleted hybrid workspace may remain in the metastore
   (ADR 0013); clean it up from the account console.
 - Publish the dbt docs site (CI already builds it as an artifact).

@@ -59,7 +59,8 @@ checked in PRs B and C and the outcome is recorded here.
    DBR 14.3+, which current serverless environments exceed. The job pins **serverless environment 6**
    (Python 3.12, Databricks Connect 19, supported until 2029-09); the wheel requires Python >= 3.12 and
    ruff targets 3.12 for `databricks/`. Local tests use pyspark 4.1, the closest open-source release.
-   DBU price: recorded with the first week's cost (acceptance criteria).
+   DBU price: recorded with the first week's cost (acceptance criteria): **0.41 EUR per serverless
+   jobs DBU** on the Azure invoice (list price $0.47).
 6. **Storage roles:** Databricks documents either `Storage Blob Data Contributor` on the account, or
    `Storage Blob Delegator` on the account plus a data role on the container. We scope per container,
    so the access connector also gets **Storage Blob Delegator** on the account (it only allows getting
@@ -247,18 +248,58 @@ ideally before A.
 
 ## Acceptance criteria
 
-- [ ] Step 0 items 3, 6 and 7 are confirmed by running code and recorded here.
-- [ ] `terraform plan` after apply shows no changes.
-- [ ] No Databricks PAT, client secret or storage key anywhere: CI uses OIDC, UC uses the access connector.
-- [ ] `uv run pytest` and ruff pass locally and in CI; `databricks bundle validate` passes in CI.
-- [ ] The job is deployed by CI and the first run loads the whole backfill into all five bronze tables.
+Checked 2026-10-22 to 2026-11-01. All met.
+
+- [x] Step 0 items 3, 6 and 7 are confirmed by running code and recorded here. Items 3 and 6 on
+      2026-10-22 (above); item 7 by the first job run on serverless, which parsed both XML sources
+      with `_rescued_data` empty in every table (still no rescued rows on 2026-11-01).
+- [x] `terraform plan` after apply shows no changes. Every main run checks it since phase 4 ("Verify
+      no changes after apply", `-detailed-exitcode`); the latest, PR #61's on 2026-10-27, applied one
+      change and then planned "No changes".
+- [x] No Databricks PAT, client secret or storage key anywhere: CI uses OIDC, UC uses the access connector.
+      On 2026-11-01 the workspace has no personal access tokens (`token-management list` is empty),
+      shared key access is off on both storage accounts, and gitleaks passes on every PR and main run.
+- [x] `uv run pytest` and ruff pass locally and in CI; `databricks bundle validate` passes in CI.
+      Locally ruff passes and the Spark tests skip, since there is no Java on the owner's machine
+      (by choice); CI runs them with Java 17 on every PR that touches `databricks/`.
+- [x] The job is deployed by CI and the first run loads the whole backfill into all five bronze tables.
       Row counts are recorded here and match the landing files (e.g. Fingrid records per dataset ≈ the
       phase 1 backfill counts plus overlap duplicates).
-- [ ] Two consecutive scheduled runs succeed; the second appends only rows from new files (checkpoint
-      works, nothing is reloaded).
-- [ ] Both ENTSO-E grains are in bronze: `resolution` has `PT60M` before 2025-10-01 and `PT15M` after.
-- [ ] Cost after a week of scheduled runs is recorded (Azure cost analysis for the workspace), and it is
+      First run on the current workspace (ADR 0013), 2026-10-22 08:22–08:56 UTC:
+
+      | Table | Files | Rows | Distinct intervals |
+      |---|---:|---:|---:|
+      | `fingrid_wind_production` | 50 | 106,434 | 98,083 |
+      | `fingrid_consumption` | 50 | 106,381 | 98,042 |
+      | `fingrid_production` | 50 | 106,428 | 98,077 |
+      | `entsoe_day_ahead_price` | 48 | 63,014 | 50,935 |
+      | `fmi_observations` | 768 | 1,282,320 | |
+
+      2024-01-01 to the first load is about 98,430 quarter-hours; less phase 1's "about 350 missing
+      quarter-hours per dataset" that is the 98,04x–98,08x distinct intervals above. The rest of the
+      rows are overlap duplicates from the 48-hour window. ENTSO-E has fewer distinct positions than
+      intervals because A03 curves omit positions whose price repeats (silver forward-fills them).
+      On 2026-11-01 every one of the 2,868 non-empty landing files written before that day's load is
+      in bronze, and no file was loaded twice.
+- [x] Two consecutive scheduled runs succeed; the second appends only rows from new files (checkpoint
+      works, nothing is reloaded). Runs at 12:30 and 18:30 UTC on 2026-10-22 and 00:30 on 10-23 each
+      appended only the files that arrived since the run before (FMI 9,248 rows = 2,312 × 4 fetches,
+      then 13,872 = 2,312 × 6). Every scheduled run since has succeeded, every day at 06:30 UTC
+      since ADR 0017.
+- [x] Both ENTSO-E grains are in bronze: `resolution` has `PT60M` before 2025-10-01 and `PT15M` after.
+      `PT60M`: 15,094 rows, periods from 2023-12-31 23:00 to 2025-09-29 22:00 UTC; `PT15M`: 111,983
+      rows from 2025-09-30 22:00 UTC (delivery day 2025-10-01 CET) on.
+- [x] Cost after a week of scheduled runs is recorded (Azure cost analysis for the workspace), and it is
       within the budget.
+      Azure invoice, whole subscription: **16.51 EUR for the first week** (2026-10-22 to 10-28), of
+      which 16.15 EUR Databricks. Most of that was development on the SQL warehouse (phases 3 and 5:
+      2.4–5.2 EUR a day on 10-22 to 10-26), not the scheduled jobs. After ADR 0017 (bronze once a
+      day, predictive optimization off) a normal day costs **about 0.31 EUR** (0.30, 0.33, 0.31 and
+      0.30 on 10-28 to 10-31): Databricks 0.26–0.29, storage 0.02, the function alert rule 0.014.
+      That is about 9.3 EUR a month. October as a whole was 17.46 EUR, within the 20 EUR budget.
+      Azure price per DBU from the same invoice (10-28 to 10-31): serverless jobs 0.41 EUR, serverless
+      SQL 0.80 EUR. A small "NAT Gateway" line (about 0.001 EUR a day) is "Standard Data Processed"
+      billed on the workspace itself: serverless outbound traffic, not a leftover NAT gateway.
 
 ## Interview notes to capture (in README or ADRs)
 

@@ -50,7 +50,9 @@ PR that needs them, and the outcome is recorded here.
    pricing page). **Auto-stop: confirmed 2026-10-22** (Microsoft Learn, "Create a SQL warehouse"): the
    UI's minimum for serverless is 5 minutes, the API accepts **1 minute**, so the warehouse uses 1.
    Still open: the Azure Premium price per serverless SQL DBU in `swedencentral` (the AWS list price
-   is $0.70, about $2.80/hour), recorded with the first week's cost.
+   is $0.70, about $2.80/hour), recorded with the first week's cost. **Recorded 2026-11-01:** list
+   price $0.91 (`system.billing.list_prices`, phase 5 step 0 item 1); **0.80 EUR per DBU** on the
+   Azure invoice (2026-10-28 to 10-31), so about 3.20 EUR/hour at 2X-Small.
 5. **Auth:** CI gets an Entra ID token for the Azure Databricks resource after `azure/login` with OIDC
    (`az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`) and passes it to dbt
    as `token`, so no PAT or secret. Locally the owner uses dbt-databricks' `auth_type: oauth`
@@ -292,10 +294,10 @@ warehouse (its DBUs are billed to the workspace in `rg-energy-dev`).
 
 ## Acceptance criteria
 
-- [ ] Step 0 items are resolved and recorded here. All but the Azure price per serverless SQL DBU
-      (item 4), which comes with the first week's cost.
-Checked 2026-10-23 (PRs #23–#27). Open: the first week's warehouse cost, with the Azure price per
-serverless SQL DBU (step 0 item 4), recorded from 2026-10-29 together with phase 2's week-1 cost.
+Checked 2026-10-23 (PRs #23–#27); the week-1 cost and the DBU price on 2026-11-01. All met.
+
+- [x] Step 0 items are resolved and recorded here. All but the Azure price per serverless SQL DBU
+      (item 4), which comes with the first week's cost. That price is now recorded too.
 
 - [x] `terraform plan` after apply shows no changes (PR #23's apply job).
 - [x] No PAT, client secret or token in the repo or in `profiles.yml`: the job uses the injected
@@ -333,8 +335,15 @@ serverless SQL DBU (step 0 item 4), recorded from 2026-10-29 together with phase
      **Intra-hour:** since 15-minute pricing the four quarter-hours of an hour differ by 15.5
      EUR/MWh on average (p95 57), more than the 7.7 EUR/MWh change from one hour to the next.
      Hour-to-hour change was 9.6 EUR/MWh in the hourly era.
-- [ ] Warehouse cost for the first week of scheduled runs is recorded, and the total stays within the
-      budget.
+- [x] Warehouse cost for the first week of scheduled runs is recorded, and the total stays within the
+      budget. List price from `ops_daily_cost` (the pipeline-health dashboard's source), serverless
+      SQL per day: 4.93, 4.14, 0.21, 2.16, 0.67, 0.20 and 0.23 USD (2026-10-23 to 10-29). The high
+      days are development (building and checking models and dashboards by hand); a day with only
+      the scheduled build costs **about $0.20** (0.20–0.23 every day from 10-28 to 10-31), about
+      0.18 EUR on the invoice, so roughly 5.5 EUR a month, at the low end of the $6–9 estimate. Each
+      daily run takes 5.5–6.5 minutes in all, and dbt itself about 2 minutes of that. The
+      subscription's total, with phase 2's jobs, is in phase 2's acceptance criteria: about 0.31 EUR
+      a day after ADR 0017, and 17.46 EUR for October, within the 20 EUR budget.
 
 ## Interview notes to capture (in README or ADRs)
 
