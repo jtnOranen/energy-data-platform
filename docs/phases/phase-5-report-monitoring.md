@@ -85,10 +85,14 @@ or streaming views: gold updates daily (ADR 0014), so the report does too.
    account admin) the system tables; another viewer would need those grants.
 4. **dbt results in a table:** an `on-run-end` hook gets `results` (status, timing, failures per
    node) in dbt 1.12; confirm the fields and that a macro can insert them into a Delta table in the
-   same run, on the job's serverless dbt task.
+   same run, on the job's serverless dbt task. **Checked 2026-10-24** (PR #47): it can, and every
+   daily run since stores two invocations, `dbt build` and `dbt source freshness`, with status,
+   timing and failures per node (`ops_dbt_runs`).
 5. **Function failure alert:** an Azure Monitor log alert (`azurerm_monitor_scheduled_query_rules_alert_v2`)
    on the workspace-based Application Insights, counting failed `AppRequests` per function; the
    CI principal's Contributor on `rg-energy-dev` covers alert rules and action groups.
+   **Checked 2026-10-23** (PR #43): CI's apply created the action group and the rule, and nothing
+   more was needed.
 6. **Job failure email without publishing the address:** the repo is public and `alert_email` is a
    sensitive Terraform variable. Confirm a bundle variable (`BUNDLE_VAR_alert_email` from the repo
    variable in CI) keeps it out of the repository while the job settings hold it.
@@ -210,6 +214,8 @@ API (2026-10-23) lists $0.50/month at 15-minute frequency and nothing cheaper, s
 by function (three time series) is about $1.50/month. Action group emails are free (up to 1,000 a
 month). Databricks job notifications are free. Worth checking
 against the budget once phase 2 and 3's week-1 costs are in (from 2026-10-29).
+**Checked 2026-11-01:** Azure Monitor costs about 0.014 EUR a day (about 0.42 EUR a month), less
+than estimated. The whole subscription costs about 0.31 EUR a day (phase 2's acceptance criteria).
 
 ## Decisions (made by the owner on 2026-10-23)
 
@@ -230,18 +236,33 @@ against the budget once phase 2 and 3's week-1 costs are in (from 2026-10-29).
 
 ## Acceptance criteria
 
-- [ ] Step 0 items are resolved and recorded here.
-- [ ] A deliberately failed job run emails the owner (e.g. `bronze_rebuild` with an unknown source),
+Checked 2026-10-23 to 2026-11-01. All met.
+
+- [x] Step 0 items are resolved and recorded here.
+- [x] A deliberately failed job run emails the owner (e.g. `bronze_rebuild` with an unknown source),
       and so does a function alert (fired by a test query or by lowering the threshold once).
-- [ ] No email address or other personal data in the repository (gitleaks clean; the bundle and
-      Terraform read it from variables).
-- [ ] `dbt build` passes with the report models (contracts, tests); slim CI builds a changed report
-      model in its PR schema.
-- [ ] Both dashboards are deployed by CI, published, and show current data; each report page
-      answers its question (screenshots in the README).
-- [ ] The health dashboard shows job runs, dbt results, freshness and cost; the cost figures are
-      used to record phase 2 and 3's week-1 cost.
-- [ ] `terraform plan` after apply shows no changes.
+      2026-10-23: `bronze_rebuild` with `source=alert-probe` failed and emailed the owner. For the
+      function alert, the action group's test notification reached the owner, and the rule's query
+      run over ENTSO-E's outage (2026-10-22 12:30–15:30 UTC) counted 2 failures for
+      `entsoe_hourly`, so it would have fired. No function has failed since, so the rule has not
+      fired for real (no alerts in the last 30 days on 2026-11-01).
+- [x] No email address or other personal data in the repository (gitleaks clean; the bundle and
+      Terraform read it from variables). On 2026-11-01 the only email-like string in the repository
+      is the `abfss://landing@…` storage URL. The address comes from the `ALERT_EMAIL` repository
+      variable (`TF_VAR_alert_email`, `BUNDLE_VAR_alert_email`).
+- [x] `dbt build` passes with the report models (contracts, tests); slim CI builds a changed report
+      model in its PR schema. PR #45 built all nine `rpt_*` models in `pr_45_gold`; the daily job
+      has built 29 nodes and passed all 96 tests every day from 2026-10-27 to 11-01.
+- [x] Both dashboards are deployed by CI, published, and show current data; each report page
+      answers its question (screenshots in the README). The main CI deploys them (PRs #50, #52, #56);
+      published revisions 2026-10-26 (energy report) and 2026-10-24 (pipeline health). On 2026-11-01
+      bronze was 2.7–2.9 hours old and gold's power data ran to 05:30 UTC. Screenshots of all six
+      report pages are in the README (PRs #53, #55).
+- [x] The health dashboard shows job runs, dbt results, freshness and cost; the cost figures are
+      used to record phase 2 and 3's week-1 cost. Phase 3's warehouse cost comes from
+      `ops_daily_cost`, the dashboard's cost source, and phase 2's from Azure cost analysis.
+- [x] `terraform plan` after apply shows no changes (checked after every main apply; the latest,
+      PR #61's on 2026-10-27, planned "No changes").
 
 ## Interview notes to capture (in README or ADRs)
 
