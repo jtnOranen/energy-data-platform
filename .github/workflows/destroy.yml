@@ -63,7 +63,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Databricks CLI
-        uses: databricks/setup-cli@8de769ec2543ee05e456ee2121350efc7efc4bda # v1.22.1
+        uses: databricks/setup-cli@9625fdde9ba2607df0087e0d3ec7449198bf2180 # v1.23.0
 
       # First, while the catalog still exists: the jobs and dashboards use it. The destroy doesn't use
       # the warehouse ID, and a placeholder skips its lookup by name, which fails on a re-run once
