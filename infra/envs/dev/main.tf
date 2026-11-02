@@ -137,6 +137,14 @@ data "azurerm_databricks_workspace" "dev" {
   resource_group_name = data.azurerm_resource_group.dev.name
 }
 
+# No personal access tokens: CI, the owner and the jobs all authenticate with Entra ID (OIDC, az
+# login, the job's own identity), so a PAT could only be a long-lived secret nobody needs (phase 6).
+resource "databricks_workspace_conf" "this" {
+  custom_config = {
+    enableTokensConfig = "false"
+  }
+}
+
 module "databricks" {
   source = "../../modules/databricks"
 
