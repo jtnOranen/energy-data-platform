@@ -39,7 +39,7 @@ variable "owner_user_name" {
 }
 
 variable "allow_destroy" {
-  description = "Set force_destroy on the catalog and its schemas, so destroying them also drops the tables that dbt and the bundle created. False except in the destroy workflow."
+  description = "Set force_destroy on the catalog, its schemas and the lake external location, so destroying them also drops the tables that dbt and the bundle created. False except in the destroy workflow."
   type        = bool
   default     = false
 }
