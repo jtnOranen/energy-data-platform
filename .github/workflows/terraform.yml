@@ -149,7 +149,7 @@ jobs:
 
       # Only needed by the apply job below, which only runs for a push to main.
       - name: Upload plan
-        if: steps.plan.outcome == 'success' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: steps.plan.outcome == 'success' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tfplan
@@ -159,7 +159,8 @@ jobs:
   apply:
     name: apply
     needs: plan
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # A push to main, or ci.yml run by hand on main (the phase 6 rebuild).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: dev
     concurrency:

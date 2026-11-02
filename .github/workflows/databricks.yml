@@ -124,11 +124,11 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           done
 
-  # Only for pushes to main, so fork PRs never reach the credentials (see ADR 0004).
+  # Only on main (a push, or ci.yml run by hand), so fork PRs never reach the credentials (ADR 0004).
   deploy:
     name: bundle deploy
     needs: validate
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: dev
     permissions:
@@ -155,14 +155,16 @@ jobs:
       # If a dashboard was edited in the UI since the last deploy, bundle deploy stops instead of
       # overwriting it (phase 5 drift warning). When this push changed a dashboard's file, the
       # repository is meant to win (e.g. a UI edit pulled in with bundle generate), so the deploy
-      # is forced; the CLI requires that even when the file now matches the UI.
+      # is forced; the CLI requires that even when the file now matches the UI. A run by hand
+      # (the rebuild) has no push to compare and is never forced.
       - name: Bundle deploy
         env:
           PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -o pipefail
           force=""
-          if git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA" -- resources/dashboards/ | grep -q .; then
+          if [[ -n "$PUSH_BEFORE" ]] \
+            && git diff --name-only "$PUSH_BEFORE" "$GITHUB_SHA" -- resources/dashboards/ | grep -q .; then
             force="--force"
             echo "Dashboard files changed in this push: deploying with --force (the repository wins)."
           fi

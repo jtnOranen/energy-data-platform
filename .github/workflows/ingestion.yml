@@ -32,11 +32,12 @@ jobs:
       - name: Pytest
         run: uv run pytest
 
-  # Only for pushes to main, so fork PRs never reach the Azure credentials (see ADR 0004).
+  # Only on main (a push, or ci.yml run by hand), so fork PRs never reach the Azure credentials
+  # (ADR 0004).
   deploy:
     name: deploy
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: dev
     permissions:

@@ -1,6 +1,6 @@
 name: dbt PR cleanup
 
-# Drops a pull request's dbt schemas (pr_<number>_silver, pr_<number>_gold) when it is closed,
+# Drops a pull request's dbt schemas (pr_<number>_silver, _gold, _ops) when it is closed,
 # merged or not (phase 4 spec, deliverable C). Runs as the read-only principal, which created and
 # owns them. Not part of the CI gate: nothing to check, only to tidy up.
 on:
@@ -39,7 +39,7 @@ jobs:
           warehouse_id=$(curl -sSf "$DATABRICKS_HOST/api/2.0/sql/warehouses" -H "Authorization: Bearer $token" \
             | jq -r '.warehouses[] | select(.name == "energy-dev") | .id')
           [[ -n "$warehouse_id" ]] || { echo "::error::SQL warehouse energy-dev not found"; exit 1; }
-          for layer in silver gold; do
+          for layer in silver gold ops; do
             schema="pr_${PR_NUMBER}_${layer}"
             body=$(jq -n --arg wh "$warehouse_id"--arg s "drop schema if exists energy.${schema} cascade" \
               '{warehouse_id: $wh, statement: $s, wait_timeout: "50s"}')
