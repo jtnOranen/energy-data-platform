@@ -41,7 +41,7 @@ jobs:
           [[ -n "$warehouse_id" ]] || { echo "::error::SQL warehouse energy-dev not found"; exit 1; }
           for layer in silver gold ops; do
             schema="pr_${PR_NUMBER}_${layer}"
-            body=$(jq -n --arg wh "$warehouse_id"--arg s "drop schema if exists energy.${schema} cascade" \
+            body=$(jq -n --arg wh "$warehouse_id" --arg s "drop schema if exists energy.${schema} cascade" \
               '{warehouse_id: $wh, statement: $s, wait_timeout: "50s"}')
             state=$(curl -sSf -X POST "$DATABRICKS_HOST/api/2.0/sql/statements" \
               -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
