@@ -29,7 +29,8 @@ visualisation and the final report. What I set out to learn, and where it shows:
   Asset Bundle ([databricks/](databricks)).
 - **Data modelling and quality with dbt:** staging → intermediate → a star schema in gold, unit tests,
   contracts, snapshots, and slim CI that builds only changed models in a pull-request schema
-  ([dbt/](dbt)).
+  ([dbt/](dbt); models, tests and lineage on the
+  [dbt docs site](https://jtnoranen.github.io/energy-data-platform/)).
 - **Operating it:** failure alerts, data freshness, run results and cost on a health dashboard, and
   dashboards kept as code with a warning when someone edits them in the UI.
 
