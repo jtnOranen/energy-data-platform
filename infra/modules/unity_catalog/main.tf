@@ -34,6 +34,9 @@ resource "databricks_external_location" "lake" {
   url             = "abfss://${var.lake_container_name}@${var.storage_account_name}.dfs.core.windows.net/"
   credential_name = databricks_storage_credential.adls.name
   comment         = "Managed storage for the ${var.project} catalog. Managed by Terraform."
+  # Dropped managed tables stay behind for 7 days (UNDROP) and still count as dependents, so even
+  # after the catalog is gone the destroy needs force (phase 6). The storage account goes with it.
+  force_destroy = var.allow_destroy
 }
 
 # storage_root keeps the catalog's managed tables in our own container rather than wherever the

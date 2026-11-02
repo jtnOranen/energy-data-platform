@@ -86,11 +86,19 @@ jobs:
             -backend-config="container_name=tfstate" \
             -backend-config="key=dev.tfstate"
 
-      # force_destroy has to be in the state before the destroy reads it, so apply it first. Nothing
-      # else should change; whatever does is destroyed in the next step anyway.
+      # force_destroy has to be in the state before the destroy reads it, so apply it first, but only
+      # to those of its resources still in the state: a full apply on a re-run after a half-way stop
+      # would create again everything already destroyed.
       - name: Allow the catalog to be destroyed
         working-directory: infra/envs/dev
-        run: terraform apply -input=false -auto-approve
+        run: |
+          targets=$(terraform state list \
+            | grep -E '^module\.unity_catalog\.(databricks_catalog\.this|databricks_schema\.|databricks_external_location\.lake)' \
+            | sed 's/^/-target=/' || true)
+          if [[ -n "$targets" ]]; then
+            # shellcheck disable=SC2086 # one -target per line
+            terraform apply -input=false -auto-approve $targets
+          fi
 
       - name: Terraform destroy
         working-directory: infra/envs/dev

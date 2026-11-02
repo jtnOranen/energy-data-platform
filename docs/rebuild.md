@@ -68,22 +68,33 @@ from energy.gold.dim_weather_station
 
 ### 2. Back up landing
 
+The account has a hierarchical namespace, so every directory is also an empty blob (`entsoe`,
+`entsoe/day_ahead_price`, ...). Download only the data files: the CLI would write each directory
+blob as a file and then fail to create the directory of the same name.
+
 ```bash
 mkdir -p ~/landing-backup
-az storage blob download-batch --account-name stenergydevua7j --auth-mode login \
-  --source landing --destination ~/landing-backup --output none
-find ~/landing-backup -type f | wc -l   # about 3,000 files, 650 MB on 2026-11-01
+for pattern in '*.xml' '*.json'; do
+  az storage blob download-batch --account-name stenergydevua7j --auth-mode login \
+    --source landing --destination ~/landing-backup --pattern "$pattern" --output none
+done
+find ~/landing-backup -type f | wc -l   # 3,124 files, 673 MB on 2026-11-02
 ```
+
+On Windows, give `--destination` as a Windows path (`"$USERPROFILE\landing-backup"` from
+PowerShell): the CLI mixes `~`'s forward slashes with backslashes and can't find the directory.
 
 ### 3. Destroy
 
 GitHub → Actions → **Destroy dev** → Run workflow (branch `main`), and type `destroy dev`. It runs
-`databricks bundle destroy`, applies `allow_destroy` (force_destroy on the catalog and schemas), and
-runs `terraform destroy`. Afterwards `rg-energy-dev` holds only the workspace `dbw-energy-dev` and
+`databricks bundle destroy`, applies `allow_destroy` (force_destroy on the catalog, the schemas and
+the `lake` external location, whose dropped tables Unity Catalog keeps for 7 days), and runs
+`terraform destroy`. Afterwards `rg-energy-dev` holds only the workspace `dbw-energy-dev` and
 the action group "Application Insights Smart Detection", which Azure created along with App
 Insights and Terraform doesn't own.
 
-If it stops half-way, run it again; both destroys pick up where they left off.
+If it stops half-way, run it again; both destroys pick up where they left off, and the
+`allow_destroy` apply touches only the resources still in the state.
 
 ### 4. Purge the Key Vault
 
