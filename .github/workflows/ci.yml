@@ -157,10 +157,14 @@ jobs:
       contents: read
     uses: ./.github/workflows/databricks.yml
 
+  # After Terraform too: the lint and the PR build connect to the warehouse, which a rebuild
+  # (phase 6) only creates in the apply.
   dbt:
     name: dbt
-    needs: changes
-    if: needs.changes.outputs.dbt == 'true'
+    needs: [changes, terraform]
+    if: >-
+      always() && needs.changes.outputs.dbt == 'true'
+      && (needs.terraform.result == 'success' || needs.terraform.result == 'skipped')
     permissions:
       id-token: write
       contents: read

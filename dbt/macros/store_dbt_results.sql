@@ -10,6 +10,46 @@
     {%- if not execute or not results -%}
         {{ return('') }}
     {%- endif -%}
+    {%- set relation = create_dbt_results() -%}
+    {%- if not relation -%}
+        {{ return('') }}
+    {%- endif -%}
+
+    {%- set rows = [] -%}
+    {%- for result in results -%}
+        {%- set rows_affected = (result.adapter_response or {}).get('rows_affected') -%}
+        {%- set message = (result.message or '') | string -%}
+        {%- do rows.append(
+            "('" ~ invocation_id ~ "', "
+            ~ "timestamp'" ~ run_started_at.strftime('%Y-%m-%d %H:%M:%S') ~ "', "
+            ~ "'" ~ target.name ~ "', "
+            ~ "'" ~ result.node.unique_id ~ "', "
+            ~ "'" ~ result.node.resource_type ~ "', "
+            ~ "'" ~ result.node.name ~ "', "
+            ~ "'" ~ result.status ~ "', "
+            ~ (result.execution_time or 0) ~ ", "
+            ~ (result.failures if result.failures is not none else 'null') ~ ", "
+            ~ (rows_affected if rows_affected is not none and rows_affected >= 0 else 'null') ~ ", "
+            ~ "'" ~ message[:1000] | replace('\\', '\\\\') | replace("'", "\\'") ~ "')"
+        ) -%}
+    {%- endfor -%}
+
+    {% call statement('insert_dbt_results') -%}
+        insert into {{ relation }} values
+        {{ rows | join(',\n') }}
+    {%- endcall %}
+{%- endmacro %}
+
+{#-
+    Creates <ops schema>.dbt_results if it is missing and returns its name, or '' when this run
+    doesn't store results. Also an on-run-start hook: ops_dbt_runs and ops_dbt_issues read the
+    table, so in a new catalog (the phase 6 rebuild) it has to exist before they are built, not
+    only after the first run ends.
+-#}
+{% macro create_dbt_results() -%}
+    {%- if not execute -%}
+        {{ return('') }}
+    {%- endif -%}
     {%- if target.name != 'prod' and not var('store_dbt_results', false) -%}
         {{ return('') }}
     {%- endif -%}
@@ -39,27 +79,5 @@
         comment 'Results of production dbt runs, one row per node (phase 5). Written by the on-run-end hook.'
     {%- endcall %}
 
-    {%- set rows = [] -%}
-    {%- for result in results -%}
-        {%- set rows_affected = (result.adapter_response or {}).get('rows_affected') -%}
-        {%- set message = (result.message or '') | string -%}
-        {%- do rows.append(
-            "('" ~ invocation_id ~ "', "
-            ~ "timestamp'" ~ run_started_at.strftime('%Y-%m-%d %H:%M:%S') ~ "', "
-            ~ "'" ~ target.name ~ "', "
-            ~ "'" ~ result.node.unique_id ~ "', "
-            ~ "'" ~ result.node.resource_type ~ "', "
-            ~ "'" ~ result.node.name ~ "', "
-            ~ "'" ~ result.status ~ "', "
-            ~ (result.execution_time or 0) ~ ", "
-            ~ (result.failures if result.failures is not none else 'null') ~ ", "
-            ~ (rows_affected if rows_affected is not none and rows_affected >= 0 else 'null') ~ ", "
-            ~ "'" ~ message[:1000] | replace('\\', '\\\\') | replace("'", "\\'") ~ "')"
-        ) -%}
-    {%- endfor -%}
-
-    {% call statement('insert_dbt_results') -%}
-        insert into {{ relation }} values
-        {{ rows | join(',\n') }}
-    {%- endcall %}
+    {{ return(relation) }}
 {%- endmacro %}

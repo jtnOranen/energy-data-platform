@@ -100,10 +100,18 @@ are still uncaptured.
    **Partly checked 2026-11-01** (PR A): `allow_destroy` (default `false`) sets `force_destroy` on
    the catalog and the four schemas, and the plan with the default shows no change. What else
    blocks a destroy shows only in the destroy itself (deliverable C).
+   **Checked 2026-11-02** (rebuild test): the `lake` external location blocked it, because Unity
+   Catalog keeps dropped managed tables for 7 days (UNDROP) and counts them as dependents even
+   after the catalog is gone. `allow_destroy` now sets `force_destroy` on it too (#67). Nothing else
+   blocked.
 5. **Order and identities:** `databricks bundle destroy` before `terraform destroy` (the jobs use
    the catalog), both as the deploying principal in the `dev` environment. Which parts of the
    destroy does it lack rights for? It is Contributor on `rg-energy-dev` only, and `bootstrap.sh`
    made the role assignments it can't make itself.
+   **Checked 2026-11-02** (rebuild test): the deploying principal destroyed and created everything,
+   role assignments included (it has Role Based Access Control Administrator on `rg-energy-dev`).
+   The only thing outside its reach was the soft-deleted Key Vault, which the owner purged, as
+   decided in item 2.
 6. **Orphaned catalog:** list the metastore's catalogs and remove the hybrid workspace's default
    catalog if it is still there.
 7. **Disabling personal access tokens:** `databricks_workspace_conf` with
@@ -180,6 +188,49 @@ the resources are gone. GitHub Pages is free for public repositories. No new run
       catalog is gone or confirmed absent.
 - [ ] The README has the cost report and the limitations; the interview notes of phases 0–6 are
       written up in `docs/design-notes.md`.
+
+## Rebuild test (deliverable C, 2026-11-02)
+
+Run by the owner with Claude Code, following `docs/rebuild.md`. Times UTC.
+
+| Step | When | Result |
+| --- | --- | --- |
+| 1. Baseline, cutoff 2026-10-31 00:00 | 14:47 | 9 relations recorded |
+| 2. Landing backup | 14:50–15:00 | 3,124 files, 673 MB; the first try failed (below) |
+| 3. Destroy (`destroy.yml`) | 14:53–15:09 | done on the third run (#67, #68) |
+| 4. Purge the Key Vault (owner) | 15:10 | |
+| 5. `bootstrap.sh` | 15:11 | everything found, nothing changed |
+| 6. Rebuild (`ci.yml` by hand) | 15:12–15:27 | done on the second run; the post-apply plan: "No changes" |
+| 7. API keys (owner, portal) | about 15:25 | |
+| 8. Landing restore | 15:28–15:31 | 3,124 files |
+| 9. `bronze_load`, `dbt_build` | 15:31–15:42, 15:42–15:51 | success; dbt's first attempt failed (below), the retry passed |
+| 10. Compare | 15:52 | **all 9 rows identical** (bronze rows and files, gold rows and sums) |
+| 11. Alert probe, function | 15:52–16:15 | failure email received; function runs from 16:05 all succeed |
+
+From the start of the destroy to the data back: one hour, of which about 20 minutes went on the
+fixes below. The function missed its 15:05–15:15 runs only; the 48-hour window covers them.
+
+What broke, and what changed:
+
+1. **The PR cleanup had failed since #64**: a missing space between two `jq --arg`s (#66).
+2. **The `lake` external location blocked the destroy** (step 0 item 4), and a re-run of the
+   destroy would have run a full apply, creating again everything already destroyed. Now
+   `force_destroy` on `lake` and an apply targeted at the resources still in the state (#67).
+3. **The bundle destroy failed on a re-run**: its warehouse lookup by name fails once the warehouse
+   is gone. A placeholder value skips it (#68).
+4. **The landing backup failed**: the hierarchical namespace has an empty blob per directory, which
+   `download-batch` writes as a file and then can't create the directory. Only `*.xml` and
+   `*.json` are downloaded now (#67, `docs/rebuild.md`).
+5. **CI's dbt job ran before the apply had created the warehouse** (parallel with Terraform), so
+   its lint failed. It now waits for Terraform (#69).
+6. **"Re-run failed jobs" doesn't work for the apply**: it reuses the stale saved plan. The runbook
+   says to run the whole workflow again (#69).
+7. **The two ops views failed in the first `dbt_build`** of the new catalog: they read
+   `ops.dbt_results`, which the on-run-end hook only creates after the run. An on-run-start hook
+   now creates it first (#69).
+
+The Log Analytics workspace came back with its history (soft delete, recovered by name), as
+decided in step 0 item 2.
 
 ## Interview notes to capture (in `docs/design-notes.md`)
 
