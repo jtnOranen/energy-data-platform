@@ -114,13 +114,25 @@ are still uncaptured.
    decided in item 2.
 6. **Orphaned catalog:** list the metastore's catalogs and remove the hybrid workspace's default
    catalog if it is still there.
+   **Checked 2026-11-02:** the metastore lists `energy`, the current workspace's
+   `dbw_energy_dev_7405610438268005`, `samples` and `system`; `catalogs get
+   dbw_energy_dev_7405615529952621` answers "does not exist" (not a permission error). Nothing to
+   delete.
 7. **Disabling personal access tokens:** `databricks_workspace_conf` with
    `enableTokensConfig = false` from Terraform (the CI principal is a workspace admin). Nothing uses
    a PAT (phase 2's acceptance criteria), but check the dbt task's injected `DBT_ACCESS_TOKEN` and
    the owner's local `az` tokens still work afterwards.
+   **Done 2026-11-02** (#70): no tokens existed (`token-management list` empty). After the apply
+   `enableTokensConfig` is `false`, a manual `dbt_build` run passed (the task's connection isn't a
+   PAT), and the owner's `az` token still runs SQL and the CLI.
 8. **dbt docs on GitHub Pages:** what the generated `catalog.json` contains (column statistics from
    the warehouse) before publishing it from a public repository, and whether `actions/deploy-pages`
    needs anything beyond `pages: write` and `id-token: write` on the deploy job.
+   **Done 2026-11-02** (#71): CI generates the docs with `--empty-catalog`, so `catalog.json` holds
+   no statistics; the manifest has no email addresses, hosts, IDs or tokens. The deploy job needs
+   only those two permissions (and the caller in `ci.yml` must grant `pages: write`), plus Pages
+   turned on with GitHub Actions as the source (`github-settings.sh`). The `github-pages`
+   environment deploys from `main` only. Live at https://jtnoranen.github.io/energy-data-platform/.
 
 ## Deliverables
 
