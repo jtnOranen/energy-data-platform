@@ -3,7 +3,10 @@ version: "1.0.0"
 profile: energy
 
 # Every production run's node results into ops.dbt_results, for the pipeline-health dashboard
-# (phase 5, decision 2; macros/store_dbt_results.sql).
+# (phase 5, decision 2; macros/store_dbt_results.sql). The table is created at the start too, so
+# the ops views that read it build in a new catalog (phase 6 rebuild).
+on-run-start:
+  - "{% do create_dbt_results() %}"
 on-run-end:
   - "{{ store_dbt_results(results) }}"
 

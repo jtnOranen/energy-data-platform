@@ -118,8 +118,10 @@ Everything it owns still exists, so it should only report that. This shows it is
 
 GitHub → Actions → **CI** → Run workflow (branch `main`). By hand it treats every part as changed:
 Terraform applies and checks that a second plan is empty, then the function is deployed, then the
-bundle. If the apply fails creating an external location with a permission error, run it again:
-new role assignments take a few minutes to reach Azure Storage.
+bundle. If the apply fails creating an external location with a permission error, run the
+workflow again: new role assignments take a few minutes to reach Azure Storage. Run the whole
+workflow, not "Re-run failed jobs": the apply would reuse the first attempt's saved plan, which no
+longer matches the state ("Saved plan is stale").
 
 ### 7. API keys
 
@@ -140,8 +142,8 @@ wait a few minutes. Files the function wrote since step 6 aren't touched (every 
 
 ### 9. Load and build
 
-Databricks → Jobs: run **bronze_load** (empty checkpoints, so it loads every file; about 35
-minutes), then **dbt_build**.
+Databricks → Jobs: run **bronze_load** (empty checkpoints, so it loads every file; 11 minutes on
+2026-11-02, the three sources in parallel), then **dbt_build** (about 10 minutes).
 
 ### 10. Compare
 
