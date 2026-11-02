@@ -61,5 +61,15 @@ gh api --method PUT "repos/$REPO/branches/main/protection" --input - --silent <<
 JSON
 echo "    required check: all checks passed (up to date with main), admins included"
 
+# The dbt docs site, published by CI from main (phase 6, decision 4). Source "GitHub Actions": no
+# gh-pages branch, the workflow uploads the site itself.
+echo "==> GitHub Pages on $REPO"
+if gh api "repos/$REPO/pages" --silent 2>/dev/null; then
+  gh api --method PUT "repos/$REPO/pages" -f build_type=workflow --silent
+else
+  gh api --method POST "repos/$REPO/pages" -f build_type=workflow --silent
+fi
+echo "    built by GitHub Actions: $(gh api "repos/$REPO/pages" --jq .html_url)"
+
 echo ""
 echo "==> Done"

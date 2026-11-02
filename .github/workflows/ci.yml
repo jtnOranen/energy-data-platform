@@ -169,6 +169,7 @@ jobs:
       id-token: write
       contents: read
       actions: read
+      pages: write # the docs site, from main only (dbt.yml)
     uses: ./.github/workflows/dbt.yml
 
   # The only required status check (branch protection, infra/bootstrap/github-settings.sh). Runs
