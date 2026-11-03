@@ -10,6 +10,10 @@ How wind power and weather show up in the Finnish day-ahead electricity price â€
 Azure and Databricks, built with Terraform, dbt and GitHub Actions. Architecture and data flow:
 [docs/architecture.md](docs/architecture.md).
 
+> **Status:** the platform ran on Azure from 2026-10-20 to 2026-11-03 and was then torn down, so it
+> no longer costs anything. The screenshots below and the
+> [dbt docs site](https://jtnoranen.github.io/energy-data-platform/) show it in operation.
+
 ## What this project is for
 
 **The main goal of this project is to train and showcase an end-to-end data pipeline built with
