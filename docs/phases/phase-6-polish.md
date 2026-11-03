@@ -184,22 +184,34 @@ the resources are gone. GitHub Pages is free for public repositories. No new run
 
 ## Acceptance criteria
 
-- [ ] Step 0 items are resolved and recorded here.
-- [ ] Plans after PRs A and D show no changes beyond what each PR intends; the post-apply check
-      passes.
-- [ ] The repository holds no ID that a rebuild changes (warehouse ID, storage account name), and
-      no secret.
-- [ ] The rebuild test ran through CI (no local `apply` or `destroy`): everything Terraform and the
-      bundle own was destroyed and rebuilt, and the steps are in `docs/rebuild.md`.
-- [ ] After the rebuild, bronze has the same files and rows as the baseline, and gold's row counts
+- [x] Step 0 items are resolved and recorded here. All eight are checked, decided or done above.
+- [x] Plans after PRs A and D show no changes beyond what each PR intends; the post-apply check
+      passes. PR A's (#64) plan was 0 to add, 0 to change, 0 to destroy (it only forgot
+      `random_string.suffix`); #70's added only `databricks_workspace_conf`. The post-apply plan
+      (`-detailed-exitcode`, fails on any change) passed on every `main` run through #72.
+- [x] The repository holds no ID that a rebuild changes (warehouse ID, storage account name), and
+      no secret. On 2026-11-03 neither warehouse ID appears outside the "Where we start" note
+      above; the storage account and Key Vault names hold the pinned suffix, which the rebuild
+      kept. Gitleaks runs in pre-commit and CI.
+- [x] The rebuild test ran through CI (no local `apply` or `destroy`): everything Terraform and the
+      bundle own was destroyed and rebuilt, and the steps are in `docs/rebuild.md`. `destroy.yml`
+      and `ci.yml` by hand, 2026-11-02 (table below).
+- [x] After the rebuild, bronze has the same files and rows as the baseline, and gold's row counts
       and per-day sums match it up to the cutoff; the scheduled jobs and the function then run on
-      their own, with no gap in the data.
+      their own, with no gap in the data. All nine baseline rows identical (cutoff 2026-10-31). On
+      2026-11-03 the scheduled `bronze_load` (06:30–06:38) and `dbt_build` (07:15–07:21) succeeded:
+      29 nodes, 96 tests, none failed, all five sources fresh. The function ran every hour from
+      2026-11-02 16:05 to 11-03 16:15 with no failure, and gold's test that every complete UTC day
+      has 96 quarter-hours passed.
 - [ ] Both dashboards render with current data; a deliberately failed job still emails the owner.
-- [ ] The rebuild's time, cost and every manual step are recorded here.
-- [ ] Personal access tokens are off; the dbt docs site is published on GitHub Pages; the orphaned
-      catalog is gone or confirmed absent.
-- [ ] The README has the cost report and the limitations; the interview notes of phases 0–6 are
-      written up in `docs/design-notes.md`.
+      Both are published on the new warehouse (2026-11-02 15:27); the failure email arrived
+      2026-11-02 (step 11 below).
+- [x] The rebuild's time, cost and every manual step are recorded here (the table and the cost
+      under "Rebuild test" below).
+- [x] Personal access tokens are off; the dbt docs site is published on GitHub Pages; the orphaned
+      catalog is gone or confirmed absent. Step 0 items 6–8 (#70, #71).
+- [x] The README has the cost report and the limitations; the interview notes of phases 0–6 are
+      written up in `docs/design-notes.md` (#72).
 
 ## Rebuild test (deliverable C, 2026-11-02)
 
@@ -221,6 +233,11 @@ Run by the owner with Claude Code, following `docs/rebuild.md`. Times UTC.
 
 From the start of the destroy to the data back: one hour, of which about 20 minutes went on the
 fixes below. The function missed its 15:05–15:15 runs only; the 48-hour window covers them.
+
+Cost: the rebuild's two hours (14:00–16:00) used about 1.1 USD of Databricks at list price, 0.92
+on the SQL warehouse (baseline, `dbt_build`, compare) and 0.14 on jobs (the full bronze load), in
+line with the 1–3 EUR estimate. The invoice for 2026-11-02 is 2.64 EUR against about 0.30 on a
+quiet day; the rest is the CI builds of PRs D and E that evening.
 
 What broke, and what changed:
 

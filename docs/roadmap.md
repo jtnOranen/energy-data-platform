@@ -14,6 +14,9 @@ Detailed specs live in `docs/phases/`. Write the next phase's spec before starti
 | 6 Polish | 8 | README, ADRs, cost report, rebuild test | `terraform destroy` + `apply` restores everything |
 | Extension | later | Next-day price forecast with MLflow | Forecasts written back to a gold table |
 
+Phases 0–6 are done (phase 6 accepted 2026-11-03); each spec's acceptance criteria record the
+evidence.
+
 ## Backlog for later phases
 
 Known gaps, recorded when found so the phase that owns them picks them up.
