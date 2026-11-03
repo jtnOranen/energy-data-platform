@@ -203,9 +203,10 @@ the resources are gone. GitHub Pages is free for public repositories. No new run
       29 nodes, 96 tests, none failed, all five sources fresh. The function ran every hour from
       2026-11-02 16:05 to 11-03 16:15 with no failure, and gold's test that every complete UTC day
       has 96 quarter-hours passed.
-- [ ] Both dashboards render with current data; a deliberately failed job still emails the owner.
-      Both are published on the new warehouse (2026-11-02 15:27); the failure email arrived
-      2026-11-02 (step 11 below).
+- [x] Both dashboards render with current data; a deliberately failed job still emails the owner.
+      Both are published on the new warehouse (2026-11-02 15:27), and the owner checked on
+      2026-11-03 that both render with that day's data; the failure email arrived 2026-11-02
+      (step 11 below).
 - [x] The rebuild's time, cost and every manual step are recorded here (the table and the cost
       under "Rebuild test" below).
 - [x] Personal access tokens are off; the dbt docs site is published on GitHub Pages; the orphaned
