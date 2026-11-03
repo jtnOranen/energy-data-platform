@@ -14,6 +14,9 @@ Detailed specs live in `docs/phases/`. Write the next phase's spec before starti
 | 6 Polish | 8 | README, ADRs, cost report, rebuild test | `terraform destroy` + `apply` restores everything |
 | Extension | later | Next-day price forecast with MLflow | Forecasts written back to a gold table |
 
+Phases 0–6 are done (phase 6 accepted 2026-11-03); each spec's acceptance criteria record the
+evidence.
+
 ## Backlog for later phases
 
 Known gaps, recorded when found so the phase that owns them picks them up.
@@ -27,11 +30,10 @@ alert; a failed `main` deploy is GitHub's own workflow-failure email to the push
 hidden; mark every new one `sensitive`.
 
 **Phase 6 (polish)**
-- The workspace still allows personal access tokens (`enableTokensConfig` is `true`), though none
-  exist and nothing uses one (checked 2026-11-01). Consider turning them off.
-- An orphaned workspace catalog from the deleted hybrid workspace may remain in the metastore
-  (ADR 0013); clean it up from the account console.
-- Publish the dbt docs site (CI already builds it as an artifact).
+- ~~The workspace still allows personal access tokens.~~ Off since #70 (`databricks_workspace_conf`).
+- ~~An orphaned workspace catalog from the deleted hybrid workspace may remain.~~ Confirmed absent
+  2026-11-02 (`catalogs get` → "does not exist").
+- ~~Publish the dbt docs site.~~ GitHub Pages from `main` since #71.
 
 ## Report questions (phase 5)
 

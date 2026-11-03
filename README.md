@@ -174,7 +174,8 @@ Loads 2024-01-01 → now for all three sources into `landing` with the same code
 
 ## Design decisions
 
-See [docs/adr](docs/adr). Highlights: [ingestion](docs/adr/0002-azure-function-for-ingestion.md),
+[docs/design-notes.md](docs/design-notes.md) answers the "why" questions in short, by topic; the
+full records are in [docs/adr](docs/adr). Highlights: [ingestion](docs/adr/0002-azure-function-for-ingestion.md),
 [dbt](docs/adr/0003-dbt-for-transformations.md), [OIDC](docs/adr/0004-oidc-for-ci-authentication.md),
 [UTC and 15-minute grain](docs/adr/0005-utc-and-15-minute-grain.md).
 
@@ -194,11 +195,51 @@ See [docs/adr](docs/adr). Highlights: [ingestion](docs/adr/0002-azure-function-f
 
 ## Cost
 
-*(actual monthly cost, phase 6)*
+From the Azure invoice (EUR). October, the first month, came to **17.46** against a 20 EUR budget,
+mostly development work on the SQL warehouse in the first week. Running on its own since
+[ADR 0017](docs/adr/0017-daily-bronze-load-and-no-predictive-optimization.md) (2026-10-28 onwards):
+
+| Component | Per day | Per month |
+| --- | --- | --- |
+| Databricks: daily dbt build on the SQL warehouse | 0.18 | 5.5 |
+| Databricks: daily bronze load (serverless jobs) | 0.09 | 2.7 |
+| Azure Monitor (function failure alert) | 0.014 | 0.4 |
+| Storage (landing, lake, state) | 0.02 | 0.6 |
+| Function app (Flex Consumption), Key Vault, Log Analytics | ≈ 0 | ≈ 0 |
+| **Total** | **≈ 0.30** | **≈ 9.3** |
+
+Before ADR 0017 a quiet day cost about 0.85 EUR: bronze loaded four times a day, and Databricks'
+predictive optimization ran OPTIMIZE and VACUUM on tables too small to need them. Loading once a day
+before the dbt build and turning it off cut the running cost by two thirds without making the
+report any less fresh. The [rebuild test](docs/rebuild.md) cost about 1 USD of extra Databricks
+compute. The budget (20 EUR a month) emails at 80 % and 100 % of actual spend and when the forecast
+reaches 100 %.
 
 ## Limitations and next steps
 
-*(phase 6)*
+- **One environment.** `dev` is also production. A second environment would need its own resource
+  group, workspace and state, and a promotion step in CI.
+- **Daily freshness.** Gold is rebuilt once a day at 07:15 UTC, so the report lags landing by up to
+  a day. Building gold after every load costs a SQL warehouse start per run: every 6 hours would
+  add about 20–30 EUR a month ([ADR 0014](docs/adr/0014-daily-dbt-job-on-serverless.md)). The
+  schedule is one line in the bundle.
+- **The CI principal can assign any role inside its resource group.** RBAC Administrator is scoped
+  to `rg-energy-dev`, but without a condition limiting which roles it may assign. A role assignment
+  condition (only the storage and Key Vault data roles Terraform uses) would close that.
+- **Public endpoints.** Storage, Key Vault and the workspace are reached over public endpoints with
+  Entra ID authentication; there is no private networking. Adding a storage firewall would need a
+  network connectivity configuration for serverless compute.
+- **Landing is the only copy of the history.** It is in a locally redundant storage account inside
+  the Terraform-managed resource group; the rebuild runbook backs it up by hand. Soft delete or a
+  copy in a second account would protect it from a mistaken destroy.
+- **ENTSO-E prices reach only up to now.** The function's window ends at the current time, so the
+  next day's prices, published around midday, are picked up once their delivery hour passes. A
+  forecast extension (wind and temperature against price) would fetch ahead and add a model on top
+  of gold; that was the planned next phase.
+- **Dashboards are view-only for others.** They run with the viewer's own rights, so anyone besides
+  the owner needs grants on gold, ops and the system tables.
+
+More detail behind each choice: [docs/design-notes.md](docs/design-notes.md).
 
 ## Data sources and licences
 
