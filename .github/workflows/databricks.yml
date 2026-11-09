@@ -31,13 +31,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Java (for local Spark)
-        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: true
 
@@ -70,7 +70,7 @@ jobs:
 
       - name: Setup Databricks CLI
         if: env.IS_TRUSTED_SOURCE == 'true'
-        uses: databricks/setup-cli@8de769ec2543ee05e456ee2121350efc7efc4bda # v1.22.1
+        uses: databricks/setup-cli@9625fdde9ba2607df0087e0d3ec7449198bf2180 # v1.23.0
 
       - name: Bundle validate
         if: env.IS_TRUSTED_SOURCE == 'true'
@@ -147,10 +147,10 @@ jobs:
           fetch-depth: 0 # the deploy step diffs this push's commits
 
       - name: Setup uv (builds the wheel)
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Setup Databricks CLI
-        uses: databricks/setup-cli@8de769ec2543ee05e456ee2121350efc7efc4bda # v1.22.1
+        uses: databricks/setup-cli@9625fdde9ba2607df0087e0d3ec7449198bf2180 # v1.23.0
 
       # If a dashboard was edited in the UI since the last deploy, bundle deploy stops instead of
       # overwriting it (phase 5 drift warning). When this push changed a dashboard's file, the
