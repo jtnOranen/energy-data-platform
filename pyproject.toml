@@ -9,7 +9,7 @@ dependencies = ["energy-ingest", "energy-bronze"]
 # dbt and its linter (dbt/). Not a default group: only the dbt CI job and local dbt work need it
 # (`uv sync --group dbt`). Pinned to the version the Databricks job installs (phase 3 spec).
 dbt = [
-    "dbt-databricks==1.12.7",
+    "dbt-databricks==1.13.0",
     "sqlfluff>=4.4.0",
     "sqlfluff-templater-dbt>=4.4.0",
 ]
